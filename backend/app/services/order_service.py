@@ -19,6 +19,11 @@ class OrderService:
         self.wallet_service = WalletService(session)
         self.provider_router = ProviderRouter(session)
 
+    async def _get_user(self, user_id: int):
+        """Get user by tg_id."""
+        r = await self.session.execute(select(User).where(User.tg_id == user_id))
+        return r.scalar_one_or_none()
+
     async def create_order(
         self,
         user_id: int,
@@ -31,7 +36,9 @@ class OrderService:
         total_cost = (quantity * price_per_1000) // 1000
 
         # Step 1: Deduct from wallet FIRST
-        user = await self.session.get(User, user_id)
+        user = await self._get_user(user_id)
+        if not user:
+            raise ValueError("User not found")
         if user.wallet_balance < total_cost:
             raise ValueError("Insufficient wallet balance")
 
