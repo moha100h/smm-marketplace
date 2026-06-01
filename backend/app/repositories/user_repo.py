@@ -11,7 +11,10 @@ class UserRepository(BaseRepository[User]):
         super().__init__(User, session)
 
     async def get_by_tg_id(self, tg_id: int) -> Optional[User]:
-        return await self.session.get(User, tg_id)
+        """Get user by Telegram ID (NOT User.id)."""
+        stmt = select(User).where(User.tg_id == tg_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_by_referral_code(self, code: str) -> Optional[User]:
         stmt = select(User).where(User.referral_code == code)
