@@ -60,7 +60,6 @@ async def sync_order_statuses(session_factory: async_sessionmaker, bot: Bot):
         orders = r.scalars().all()
 
         for order in orders:
-            # Get provider orders for this order (direct query, not relationship)
             pr = await session.execute(
                 select(ProviderOrder).where(
                     ProviderOrder.order_id == order.id,
