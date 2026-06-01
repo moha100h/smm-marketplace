@@ -1,8 +1,7 @@
 """User model — authentication, wallet, loyalty, referral."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from app.db.base import Base
 import enum
 
@@ -33,34 +32,30 @@ class User(Base):
     is_banned = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    # Relationships — user_id stores tg_id, so use primaryjoin
+    # Relationships — user_id stores tg_id, use foreign() annotation
     orders = relationship(
         "Order",
-        primaryjoin="User.tg_id == Order.user_id",
+        primaryjoin="User.tg_id == foreign(Order.user_id)",
         back_populates="user",
         lazy="selectin",
-        viewonly=True,
     )
     transactions = relationship(
         "Transaction",
-        primaryjoin="User.tg_id == Transaction.user_id",
+        primaryjoin="User.tg_id == foreign(Transaction.user_id)",
         back_populates="user",
         lazy="selectin",
-        viewonly=True,
     )
     tickets = relationship(
         "Ticket",
-        primaryjoin="User.tg_id == Ticket.user_id",
+        primaryjoin="User.tg_id == foreign(Ticket.user_id)",
         back_populates="user",
         lazy="selectin",
-        viewonly=True,
     )
     notifications = relationship(
         "Notification",
-        primaryjoin="User.tg_id == Notification.user_id",
+        primaryjoin="User.tg_id == foreign(Notification.user_id)",
         back_populates="user",
         lazy="selectin",
-        viewonly=True,
     )
 
     def update_loyalty(self):
