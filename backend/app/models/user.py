@@ -2,6 +2,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.db.base import Base
 import enum
 
@@ -32,11 +33,35 @@ class User(Base):
     is_banned = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    # Relationships — FK on child tables points to users.tg_id
-    orders = relationship("Order", back_populates="user", lazy="selectin")
-    transactions = relationship("Transaction", back_populates="user", lazy="selectin")
-    tickets = relationship("Ticket", back_populates="user", lazy="selectin")
-    notifications = relationship("Notification", back_populates="user", lazy="selectin")
+    # Relationships — user_id stores tg_id, so use primaryjoin
+    orders = relationship(
+        "Order",
+        primaryjoin="User.tg_id == Order.user_id",
+        back_populates="user",
+        lazy="selectin",
+        viewonly=True,
+    )
+    transactions = relationship(
+        "Transaction",
+        primaryjoin="User.tg_id == Transaction.user_id",
+        back_populates="user",
+        lazy="selectin",
+        viewonly=True,
+    )
+    tickets = relationship(
+        "Ticket",
+        primaryjoin="User.tg_id == Ticket.user_id",
+        back_populates="user",
+        lazy="selectin",
+        viewonly=True,
+    )
+    notifications = relationship(
+        "Notification",
+        primaryjoin="User.tg_id == Notification.user_id",
+        back_populates="user",
+        lazy="selectin",
+        viewonly=True,
+    )
 
     def update_loyalty(self):
         if self.total_spent >= 10000:
