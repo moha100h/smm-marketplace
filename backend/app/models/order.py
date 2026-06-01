@@ -22,7 +22,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.tg_id"), nullable=False, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     price_per_1000 = Column(Integer, nullable=False)
@@ -36,11 +36,10 @@ class Order(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
-    user = relationship("User", back_populates="orders",
-        primaryjoin="Order.user_id == foreign(User.tg_id)")
-    service = relationship("Service", back_populates="orders", foreign_keys=[service_id])
-    provider_orders = relationship("ProviderOrder", back_populates="order", foreign_keys="ProviderOrder.order_id", lazy="selectin")
-    transactions = relationship("Transaction", back_populates="order", foreign_keys="Transaction.order_id", lazy="selectin")
+    user = relationship("User", back_populates="orders")
+    service = relationship("Service", back_populates="orders")
+    provider_orders = relationship("ProviderOrder", back_populates="order", lazy="selectin")
+    transactions = relationship("Transaction", back_populates="order", lazy="selectin")
 
     def __repr__(self):
         return f"<Order #{self.id} status={self.status.value}>"
@@ -58,8 +57,8 @@ class ProviderOrder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    order = relationship("Order", back_populates="provider_orders", foreign_keys=[order_id])
-    provider = relationship("Provider", back_populates="provider_orders", foreign_keys=[provider_id])
+    order = relationship("Order", back_populates="provider_orders")
+    provider = relationship("Provider", back_populates="provider_orders")
 
     def __repr__(self):
         return f"<ProviderOrder #{self.id} ref={self.provider_order_ref}>"
