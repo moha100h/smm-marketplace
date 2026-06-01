@@ -60,28 +60,36 @@ async def sync_order_statuses(session_factory: async_sessionmaker, bot: Bot):
         orders = r.scalars().all()
 
         for order in orders:
-            if not order.provider_order or not order.provider_order.provider_order_ref:
-                continue
-
-            try:
-                adapter = SMMApiAdapter(
-                    order.provider_order.provider.api_url,
-                    order.provider_order.provider.api_key,
+            # Get provider orders for this order
+            from app.models.order import ProviderOrder
+            pr = await session.execute(
+                select(ProviderOrder).where(
+                    ProviderOrder.order_id == order.id,
+                    ProviderOrder.provider_order_ref.isnot(None)
                 )
-                status = await adapter.get_order_status(order.provider_order.provider_order_ref)
+            )
+            prov_orders = pr.scalars().all()
 
-                charge = status.get("charge") or status.get("remains")
-                if charge is not None:
-                    delivered = order.quantity - int(charge)
-                    if delivered >= order.quantity:
-                        order.status = OrderStatus.COMPLETED
-                        order.charged_quantity = order.quantity
-                    elif delivered > 0:
-                        order.status = OrderStatus.PARTIALLY_COMPLETED
-                        order.charged_quantity = delivered
+            for po in prov_orders:
+                try:
+                    adapter = SMMApiAdapter(
+                        po.provider.api_url,
+                        po.provider.api_key,
+                    )
+                    status = await adapter.get_order_status(po.provider_order_ref)
 
-            except Exception as e:
-                logger.error(f"Order {order.id} sync failed: {e}")
+                    charge = status.get("charge") or status.get("remains")
+                    if charge is not None:
+                        delivered = order.quantity - int(charge)
+                        if delivered >= order.quantity:
+                            order.status = OrderStatus.COMPLETED
+                            order.charged_quantity = order.quantity
+                        elif delivered > 0:
+                            order.status = OrderStatus.PARTIALLY_COMPLETED
+                            order.charged_quantity = delivered
+
+                except Exception as e:
+                    logger.error(f"Order {order.id} sync failed: {e}")
 
         await session.commit()
 
