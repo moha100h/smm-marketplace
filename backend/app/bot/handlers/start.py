@@ -4,6 +4,8 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.bot.keyboards.menus import main_menu_kb, language_kb
@@ -30,6 +32,7 @@ async def cmd_start(msg: Message, session: AsyncSession, state: FSMContext):
     args = msg.text.split()
     referral_code = args[1] if len(args) > 1 else None
 
+    # Check if user exists
     user = await session.get(User, msg.from_user.id)
     if not user:
         user = User(
@@ -99,15 +102,60 @@ async def reg_full_name(msg: Message, state: FSMContext, session: AsyncSession):
     user = await session.get(User, msg.from_user.id)
     if user:
         user.full_name = name
-        user.registered_at = user.registered_at or __import__("datetime").datetime.utcnow()
+        from datetime import datetime
+        user.registered_at = user.registered_at or datetime.utcnow()
         await session.flush()
 
     await state.clear()
     is_admin = msg.from_user.id in settings.admin_ids_list
     lang = user.language if user else "fa"
-    welcome = f"🎉 ثبت‌نام کامل شد!
-
-👤 <b>{name}</b>" if lang == "fa" else f"🎉 Registration complete!
-
-👤 <b>{name}</b>"
+    welcome = f"🎉 ثبت‌نام کامل شد!\n\n👤 <b>{name}</b>" if lang == "fa" else f"🎉 Registration complete!\n\n👤 <b>{name}</b>"
     await msg.answer(welcome, reply_markup=main_menu_kb(is_admin=is_admin, lang=lang))
+
+
+# ── Missing button handlers ──────────────────────────────────────────────────
+@router.message(F.text.in_(["🎟 کد تخفیف", "🎟 Discount Code"]))
+async def discount_code(msg: Message):
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
+    await msg.answer(
+        "🎟 <b>کد تخفیف / Discount Code</b>\n\nکد تخفیف خود را وارد کنید:",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML",
+    )
+
+
+@router.message(F.text.in_(["🎁 دعوت دوستان", "🎁 Referral"]))
+async def referral(msg: Message, session: AsyncSession):
+    user = await session.get(User, msg.from_user.id)
+    if not user or not user.referral_code:
+        await msg.answer("⚠️ ابتدا ثبت‌نام کنید")
+        return
+
+    from app.core.config import settings
+    bot_username = (await msg.bot.get_me()).username
+    link = f"https://t.me/{bot_username}?start={user.referral_code}"
+
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
+
+    await msg.answer(
+        f"🎁 <b>دعوت دوستان / Referral</b>\n\n"
+        f"لینک دعوت شما:\n<code>{link}</code>\n\n"
+        f"با هر دعوت {settings.REFERRAL_COMMISSION_PERCENT}% کمیسیون دریافت می‌کنید!",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML",
+    )
+
+
+@router.message(F.text.in_(["🎫 پشتیبانی", "🎫 Support"]))
+async def support(msg: Message):
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text="🎫 ارسال تیکت", callback_data="ticket:new"))
+    kb.row(InlineKeyboardButton(text="📋 تیکت‌های من", callback_data="ticket:my"))
+    kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
+    await msg.answer(
+        "🎫 <b>پشتیبانی / Support</b>\n\nچطور می‌توانیم کمکتان کنیم؟",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML",
+    )
