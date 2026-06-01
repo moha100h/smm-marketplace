@@ -14,9 +14,14 @@ class WalletService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def _get_user(self, user_id: int):
+        """Get user by tg_id."""
+        r = await self.session.execute(select(User).where(User.tg_id == user_id))
+        return r.scalar_one_or_none()
+
     async def process_deposit(self, user_id: int, amount: float, description: str = "Deposit") -> Transaction:
         """Add funds to user wallet."""
-        user = await self.session.get(User, user_id)
+        user = await self._get_user(user_id)
         if not user:
             raise ValueError("User not found")
 
@@ -43,7 +48,7 @@ class WalletService:
         description: str = "Purchase",
     ) -> Transaction:
         """Deduct funds for a purchase."""
-        user = await self.session.get(User, user_id)
+        user = await self._get_user(user_id)
         if not user:
             raise ValueError("User not found")
         if user.wallet_balance < amount:
@@ -73,7 +78,7 @@ class WalletService:
         reason: str = "Refund",
     ) -> Transaction:
         """Refund funds to user wallet."""
-        user = await self.session.get(User, user_id)
+        user = await self._get_user(user_id)
         if not user:
             raise ValueError("User not found")
 
@@ -95,7 +100,7 @@ class WalletService:
 
     async def process_referral_bonus(self, user_id: int, bonus: float) -> Transaction:
         """Add referral bonus."""
-        user = await self.session.get(User, user_id)
+        user = await self._get_user(user_id)
         if not user:
             raise ValueError("User not found")
 
