@@ -1,15 +1,11 @@
-"""Order and ProviderOrder models."""
 from datetime import datetime
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, ForeignKey, Float
-from sqlalchemy.orm import relationship, foreign
 from app.db.base import Base
 import enum
 
 
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
-    AWAITING_REVIEW = "awaiting_review"
-    ACCEPTED = "accepted"
     PROCESSING = "processing"
     COMPLETED = "completed"
     PARTIALLY_COMPLETED = "partially_completed"
@@ -20,7 +16,6 @@ class OrderStatus(str, enum.Enum):
 
 class Order(Base):
     __tablename__ = "orders"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, nullable=False, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
@@ -36,18 +31,9 @@ class Order(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
-    user = relationship("User", primaryjoin="foreign(Order.user_id) == User.tg_id", back_populates="orders")
-    service = relationship("Service", back_populates="orders")
-    provider_orders = relationship("ProviderOrder", back_populates="order", lazy="selectin")
-    transactions = relationship("Transaction", back_populates="order", lazy="selectin")
-
-    def __repr__(self):
-        return f"<Order #{self.id} status={self.status.value}>"
-
 
 class ProviderOrder(Base):
     __tablename__ = "provider_orders"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
@@ -56,9 +42,3 @@ class ProviderOrder(Base):
     status = Column(String(32), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    order = relationship("Order", back_populates="provider_orders")
-    provider = relationship("Provider", back_populates="provider_orders")
-
-    def __repr__(self):
-        return f"<ProviderOrder #{self.id} ref={self.provider_order_ref}>"
