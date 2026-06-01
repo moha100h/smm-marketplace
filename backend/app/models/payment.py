@@ -1,7 +1,5 @@
-"""Payment and Transaction models."""
 from datetime import datetime
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, ForeignKey, Float
-from sqlalchemy.orm import relationship, foreign
 from app.db.base import Base
 import enum
 
@@ -23,7 +21,6 @@ class PaymentStatus(str, enum.Enum):
 
 class Payment(Base):
     __tablename__ = "payments"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, nullable=False, index=True)
     amount = Column(Float, nullable=False)
@@ -34,24 +31,16 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", primaryjoin="foreign(Payment.user_id) == User.tg_id")
-
-    def __repr__(self):
-        return f"<Payment #{self.id} {self.method.value} {self.amount}>"
-
 
 class TransactionType(str, enum.Enum):
     DEPOSIT = "deposit"
     PURCHASE = "purchase"
     REFUND = "refund"
     REFERRAL_BONUS = "referral_bonus"
-    WITHDRAWAL = "withdrawal"
-    ADJUSTMENT = "adjustment"
 
 
 class Transaction(Base):
     __tablename__ = "transactions"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, nullable=False, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
@@ -61,9 +50,3 @@ class Transaction(Base):
     balance_after = Column(Float, default=0)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    user = relationship("User", primaryjoin="foreign(Transaction.user_id) == User.tg_id", back_populates="transactions")
-    order = relationship("Order", back_populates="transactions")
-
-    def __repr__(self):
-        return f"<Transaction #{self.id} {self.type.value} {self.amount}>"
