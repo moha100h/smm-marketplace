@@ -16,7 +16,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
     subject = Column(String(256), nullable=False)
     status = Column(Enum(TicketStatus), default=TicketStatus.OPEN)
     created_at = Column(DateTime, default=datetime.utcnow)
