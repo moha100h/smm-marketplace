@@ -50,7 +50,8 @@ async def admin_deposit_action(cb: CallbackQuery, session: AsyncSession):
         await cb.answer("پرداخت یافت نشد", show_alert=True)
         return
 
-    user = await session.get(User, payment.user_id)
+    r = await session.execute(select(User).where(User.tg_id == payment.user_id))
+    user = r.scalar_one_or_none()
     if not user:
         await cb.answer("کاربر یافت نشد", show_alert=True)
         return
@@ -60,8 +61,8 @@ async def admin_deposit_action(cb: CallbackQuery, session: AsyncSession):
         user.wallet_balance += payment.amount
 
         tx = Transaction(
-            user_id=user.id,
-            type="deposit",
+            user_id=user.tg_id,
+            type=TransactionType.DEPOSIT,
             amount=payment.amount,
             balance_before=user.wallet_balance - payment.amount,
             balance_after=user.wallet_balance,
@@ -111,7 +112,8 @@ async def admin_order_action(cb: CallbackQuery, session: AsyncSession):
     order.status = OrderStatus(status)
     await session.flush()
 
-    user = await session.get(User, order.user_id)
+    r = await session.execute(select(User).where(User.tg_id == order.user_id))
+    user = r.scalar_one_or_none()
     if user:
         try:
             await cb.bot.send_message(
