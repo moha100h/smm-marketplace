@@ -1,75 +1,53 @@
-"""User model — Telegram users, wallet, loyalty, referral."""
-from sqlalchemy import Column, BigInteger, String, Boolean, Integer, DateTime, Enum as SAEnum, ForeignKey, Index
-from sqlalchemy.orm import relationship
+"""User model — authentication, wallet, loyalty, referral."""
 from datetime import datetime
-import enum
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean
+from sqlalchemy.orm import relationship
 from app.db.base import Base
+import enum
 
 
-class LoyaltyLevel(enum.Enum):
+class LoyaltyLevel(str, enum.Enum):
     BRONZE = "bronze"
     SILVER = "silver"
     GOLD = "gold"
-    PLATINUM = "platinum"
     DIAMOND = "diamond"
 
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (
-        Index("ix_users_tg_id", "tg_id", unique=True),
-        Index("ix_users_referral_code", "referral_code", unique=True),
-    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tg_id = Column(BigInteger, unique=True, nullable=False, index=True)
-    username = Column(String, nullable=True)
-    full_name = Column(String, nullable=True)
-    phone = Column(String, nullable=True)
-    language = Column(String, default="fa")  # fa | en
-    is_blocked = Column(Boolean, default=False)
-    registered_at = Column(DateTime, default=datetime.utcnow)
-    last_active_at = Column(DateTime, default=datetime.utcnow)
-
-    # Wallet
-    wallet_balance = Column(Integer, default=0)  # in smallest currency unit (e.g. toman cents)
-
-    # Referral
-    referral_code = Column(String, unique=True, nullable=True)
-    referred_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    # Loyalty
-    loyalty_level = Column(SAEnum(LoyaltyLevel), default=LoyaltyLevel.BRONZE)
-    total_spent = Column(Integer, default=0)
+    username = Column(String(128), nullable=True)
+    full_name = Column(String(256), nullable=True)
+    language = Column(String(8), default="fa")
+    wallet_balance = Column(Float, default=0.0)
+    total_spent = Column(Float, default=0.0)
     total_orders = Column(Integer, default=0)
+    loyalty_level = Column(Enum(LoyaltyLevel), default=LoyaltyLevel.BRONZE)
+    referral_code = Column(String(32), unique=True, nullable=True)
+    referred_by_id = Column(Integer, nullable=True)
+    registered_at = Column(DateTime, default=datetime.utcnow)
+    last_active_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_banned = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
 
-    # Relations
-    orders = relationship("Order", back_populates="user")
-    transactions = relationship("Transaction", back_populates="user")
-    payments = relationship("Payment", back_populates="user")
-    tickets = relationship("Ticket", back_populates="user")
-    notifications = relationship("Notification", back_populates="user")
-    referrals = relationship("User", backref="referrer", remote_side=[id])
-
-    @property
-    def loyalty_discount(self) -> float:
-        discounts = {
-            LoyaltyLevel.BRONZE: 0,
-            LoyaltyLevel.SILVER: 2,
-            LoyaltyLevel.GOLD: 5,
-            LoyaltyLevel.PLATINUM: 8,
-            LoyaltyLevel.DIAMOND: 12,
-        }
-        return discounts.get(self.loyalty_level, 0)
+    # Relationships — lazy="selectin" to avoid lazy-load errors in async
+    orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id", lazy="selectin")
+    transactions = relationship("Transaction", back_populates="user", foreign_keys="Transaction.user_id", lazy="selectin")
+    tickets = relationship("Ticket", back_populates="user", foreign_keys="Ticket.user_id", lazy="selectin")
+    notifications = relationship("Notification", back_populates="user", foreign_keys="Notification.user_id", lazy="selectin")
 
     def update_loyalty(self):
-        if self.total_spent >= 50_000_000:
+        """Auto-update loyalty level based on total_spent."""
+        if self.total_spent >= 10000:
             self.loyalty_level = LoyaltyLevel.DIAMOND
-        elif self.total_spent >= 20_000_000:
-            self.loyalty_level = LoyaltyLevel.PLATINUM
-        elif self.total_spent >= 5_000_000:
+        elif self.total_spent >= 5000:
             self.loyalty_level = LoyaltyLevel.GOLD
-        elif self.total_spent >= 1_000_000:
+        elif self.total_spent >= 1000:
             self.loyalty_level = LoyaltyLevel.SILVER
         else:
             self.loyalty_level = LoyaltyLevel.BRONZE
+
+    def __repr__(self):
+        return f"<User tg_id={self.tg_id} level={self.loyalty_level.value}>"
