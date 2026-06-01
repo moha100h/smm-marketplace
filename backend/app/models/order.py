@@ -37,9 +37,10 @@ class Order(Base):
     completed_at = Column(DateTime, nullable=True)
 
     # Relationships
-    service = relationship("Service", back_populates="orders")
-    provider_orders = relationship("ProviderOrder", back_populates="order", foreign_keys="ProviderOrder.order_id")
-    transactions = relationship("Transaction", back_populates="order", foreign_keys="Transaction.order_id")
+    user = relationship("User", back_populates="orders", foreign_keys=[user_id])
+    service = relationship("Service", back_populates="orders", foreign_keys=[service_id])
+    provider_orders = relationship("ProviderOrder", back_populates="order", foreign_keys="ProviderOrder.order_id", lazy="selectin")
+    transactions = relationship("Transaction", back_populates="order", foreign_keys="Transaction.order_id", lazy="selectin")
 
     def __repr__(self):
         return f"<Order #{self.id} status={self.status.value}>"
@@ -57,9 +58,8 @@ class ProviderOrder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     order = relationship("Order", back_populates="provider_orders", foreign_keys=[order_id])
-    provider = relationship("Provider", back_populates="provider_orders")
+    provider = relationship("Provider", back_populates="provider_orders", foreign_keys=[provider_id])
 
     def __repr__(self):
         return f"<ProviderOrder #{self.id} ref={self.provider_order_ref}>"
