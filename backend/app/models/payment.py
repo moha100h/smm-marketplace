@@ -25,7 +25,7 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
     amount = Column(Float, nullable=False)
     method = Column(Enum(PaymentMethod), nullable=False)
     status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
@@ -34,7 +34,8 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", foreign_keys=[user_id])
+    user = relationship("User",
+        primaryjoin="Payment.user_id == foreign(User.tg_id)")
 
     def __repr__(self):
         return f"<Payment #{self.id} {self.method.value} {self.amount}>"
@@ -53,7 +54,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     type = Column(Enum(TransactionType), nullable=False)
     amount = Column(Float, nullable=False)
@@ -62,7 +63,8 @@ class Transaction(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", back_populates="transactions", foreign_keys=[user_id])
+    user = relationship("User", back_populates="transactions",
+        primaryjoin="Transaction.user_id == foreign(User.tg_id)")
     order = relationship("Order", back_populates="transactions", foreign_keys=[order_id])
 
     def __repr__(self):
