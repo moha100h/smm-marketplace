@@ -1,70 +1,38 @@
-"""Smart Provider Router & Failover System."""
-from typing import Dict, Any, List, Optional
-from app.adapters.base import BaseProviderAdapter
+"""Provider router — selects best provider for an order."""
+from typing import Optional, List
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.models.provider import Provider, ProviderStatus, ServiceProviderMapping
 from app.adapters.smm_api import SMMApiAdapter
-from app.models.provider import Provider, ServiceProviderMapping
-from app.core.config import settings
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class ProviderRouter:
-    """Routes orders to best available provider with failover support."""
+    """Routes orders to the best available provider."""
 
-    def __init__(self):
-        self._adapters: Dict[int, BaseProviderAdapter] = {}
+    def __init__(self, session: AsyncSession):
+        self.session = session
 
-    def get_adapter(self, provider: Provider) -> BaseProviderAdapter:
-        if provider.id not in self._adapters:
-            self._adapters[provider.id] = SMMApiAdapter(
-                api_url=provider.api_url,
-                api_key=provider.api_key,
+    async def get_providers_for_service(self, service_id: int) -> List[ServiceProviderMapping]:
+        """Get all active provider mappings for a service, ordered by priority."""
+        stmt = (
+            select(ServiceProviderMapping)
+            .join(Provider, Provider.id == ServiceProviderMapping.provider_id)
+            .where(
+                ServiceProviderMapping.service_id == service_id,
+                ServiceProviderMapping.is_active == True,
+                Provider.status == ProviderStatus.ACTIVE,
             )
-        return self._adapters[provider.id]
+            .order_by(ServiceProviderMapping.priority.desc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
-    async def route_order(
-        self,
-        service_id: int,
-        mappings: List[ServiceProviderMapping],
-        providers: List[Provider],
-        link: str,
-        quantity: int,
-    ) -> Dict[str, Any]:
-        """Try providers in priority order with failover."""
-        # Sort by priority (lower number = higher priority)
-        sorted_providers = sorted(providers, key=lambda p: p.priority)
+    async def route_order(self, service_id: int) -> Optional[ServiceProviderMapping]:
+        """Select the best provider for a service."""
+        mappings = await self.get_providers_for_service(service_id)
+        return mappings[0] if mappings else None
 
-        for provider in sorted_providers:
-            if provider.status.value != "active":
-                continue
-
-            mapping = next((m for m in mappings if m.provider_id == provider.id), None)
-            if not mapping or not mapping.is_active:
-                continue
-
-            try:
-                adapter = self.get_adapter(provider)
-                result = await adapter.add_order(
-                    service_id=mapping.provider_service_id,
-                    link=link,
-                    quantity=quantity,
-                )
-
-                if "error" not in result:
-                    return {
-                        "success": True,
-                        "provider_id": provider.id,
-                        "provider_order_ref": result.get("order"),
-                        "result": result,
-                    }
-                else:
-                    logger.warning(f"Provider {provider.id} failed: {result['error']}")
-            except Exception as e:
-                logger.error(f"Provider {provider.id} exception: {e}")
-
-        return {"success": False, "error": "All providers failed"}
-
-
-# Global router instance
-provider_router = ProviderRouter()
+    async def get_adapter(self, mapping: ServiceProviderMapping) -> SMMApiAdapter:
+        """Create an adapter for a provider mapping."""
+        provider = await self.session.get(Provider, mapping.provider_id)
+        return SMMApiAdapter(provider.api_url, provider.api_key)
