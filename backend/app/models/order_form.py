@@ -26,7 +26,7 @@ class OrderForm(Base):
     field_label = Column(String(256), nullable=False)
     field_placeholder = Column(String(256), nullable=True)
     is_required = Column(Boolean, default=True)
-    options = Column(Text, nullable=True)  # JSON for select/multi_select
+    options = Column(Text, nullable=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
