@@ -1,7 +1,5 @@
-"""User model — authentication, wallet, loyalty, referral."""
 from datetime import datetime
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean
-from sqlalchemy.orm import relationship, foreign
 from app.db.base import Base
 import enum
 
@@ -32,31 +30,6 @@ class User(Base):
     is_banned = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    orders = relationship(
-        "Order",
-        primaryjoin="User.tg_id == foreign(Order.user_id)",
-        back_populates="user",
-        lazy="selectin",
-    )
-    transactions = relationship(
-        "Transaction",
-        primaryjoin="User.tg_id == foreign(Transaction.user_id)",
-        back_populates="user",
-        lazy="selectin",
-    )
-    tickets = relationship(
-        "Ticket",
-        primaryjoin="User.tg_id == foreign(Ticket.user_id)",
-        back_populates="user",
-        lazy="selectin",
-    )
-    notifications = relationship(
-        "Notification",
-        primaryjoin="User.tg_id == foreign(Notification.user_id)",
-        back_populates="user",
-        lazy="selectin",
-    )
-
     def update_loyalty(self):
         if self.total_spent >= 10000:
             self.loyalty_level = LoyaltyLevel.DIAMOND
@@ -66,6 +39,3 @@ class User(Base):
             self.loyalty_level = LoyaltyLevel.SILVER
         else:
             self.loyalty_level = LoyaltyLevel.BRONZE
-
-    def __repr__(self):
-        return f"<User tg_id={self.tg_id} level={self.loyalty_level.value}>"
