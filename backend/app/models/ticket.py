@@ -16,13 +16,14 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
     subject = Column(String(256), nullable=False)
     status = Column(Enum(TicketStatus), default=TicketStatus.OPEN)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", back_populates="tickets", foreign_keys=[user_id])
+    user = relationship("User", back_populates="tickets",
+        primaryjoin="Ticket.user_id == foreign(User.tg_id)")
     messages = relationship("TicketMessage", back_populates="ticket", foreign_keys="TicketMessage.ticket_id", lazy="selectin")
 
     def __repr__(self):
