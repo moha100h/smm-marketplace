@@ -29,6 +29,7 @@ def create_dp() -> Dispatcher:
     from app.bot.handlers.admin import router as admin_router
     from app.bot.handlers.settings import router as settings_router
     from app.bot.handlers.support import router as support_router
+    from app.bot.handlers.referral import router as referral_router
 
     dp.include_router(start_router)
     dp.include_router(wallet_router)
@@ -36,6 +37,7 @@ def create_dp() -> Dispatcher:
     dp.include_router(admin_router)
     dp.include_router(settings_router)
     dp.include_router(support_router)
+    dp.include_router(referral_router)
 
     return dp
 
@@ -43,5 +45,5 @@ def create_dp() -> Dispatcher:
 async def start_bot():
     bot = create_bot()
     dp = create_dp()
-    logger.info("Bot started — polling...")
+    logger.info("Bot started \u2014 polling...")
     await dp.start_polling(bot)
