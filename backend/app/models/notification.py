@@ -9,7 +9,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(256), nullable=False)
     text = Column(Text, nullable=False)
     is_read = Column(Boolean, default=False)
