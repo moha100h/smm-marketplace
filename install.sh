@@ -53,7 +53,6 @@ APP_DEBUG=false
 APP_DOMAIN=localhost
 BACKUP_INTERVAL_HOURS=1
 BACKUP_RETAIN_DAYS=7
-NEXT_PUBLIC_API_URL=http://localhost:8000
 EOF
 
 echo ""
@@ -65,7 +64,8 @@ mkdir -p data logs backups ssl
 # ── Build & Start ─────────────────────────────────────────────────────────────
 echo ""
 echo "🔨 Building Docker images..."
-docker compose up -d --build
+docker compose build --no-cache
+docker compose up -d
 
 echo ""
 echo "⏳ Waiting for database to be ready..."
@@ -77,11 +77,10 @@ echo "   ✅ SMM Marketplace is running!"
 echo "========================================"
 echo ""
 echo "📋 Backend API:    http://localhost:8000"
-echo "📋 Frontend:       http://localhost:3000"
 echo "📋 API Docs:       http://localhost:8000/docs"
 echo "📋 Bot Token:      ${BOT_TOKEN:0:10}..."
 echo ""
-echo "📋 مشاهده لاگ‌ها:    docker compose logs -f"
+echo "📋 مشاهده لاگ‌ها:    docker compose logs -f backend"
 echo "🔄 ریستارت:          docker compose restart"
 echo "🛑 توقف:             docker compose down"
 echo ""
