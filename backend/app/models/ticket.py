@@ -22,7 +22,7 @@ class Ticket(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", primaryjoin="Ticket.user_id == User.tg_id", back_populates="tickets")
+    user = relationship("User", primaryjoin="foreign(Ticket.user_id) == User.tg_id", back_populates="tickets")
     messages = relationship("TicketMessage", back_populates="ticket", lazy="selectin")
 
     def __repr__(self):
