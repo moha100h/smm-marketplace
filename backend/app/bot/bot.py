@@ -5,6 +5,7 @@ from typing import Callable, Dict, Any, Awaitable
 from aiogram import Bot, Dispatcher, BaseMiddleware
 from aiogram.types import TelegramObject
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.core.config import settings
 from app.db.database import async_session
@@ -29,7 +30,10 @@ class DbSessionMiddleware(BaseMiddleware):
 
 
 def create_bot() -> Bot:
-    return Bot(token=settings.BOT_TOKEN, parse_mode="HTML")
+    return Bot(
+        token=settings.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode="HTML"),
+    )
 
 
 def create_dispatcher() -> Dispatcher:
