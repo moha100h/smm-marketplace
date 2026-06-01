@@ -1,7 +1,7 @@
 """User model — authentication, wallet, loyalty, referral."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean
+from sqlalchemy.orm import relationship, foreign
 from app.db.base import Base
 import enum
 
@@ -32,7 +32,6 @@ class User(Base):
     is_banned = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    # Relationships — user_id stores tg_id, use foreign() annotation
     orders = relationship(
         "Order",
         primaryjoin="User.tg_id == foreign(Order.user_id)",
