@@ -1,6 +1,10 @@
 """Application entry point — starts FastAPI + Telegram Bot."""
 import asyncio
 import logging
+
+# CRITICAL: Import ALL models BEFORE init_db() so SQLAlchemy discovers them
+import app.models  # noqa: F401
+
 from app.core.config import settings
 from app.db.database import engine, async_session
 from app.db.base import Base
@@ -17,7 +21,7 @@ async def init_db():
     """Create all tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database initialized")
+    logger.info("Database initialized — tables: %s", list(Base.metadata.tables.keys()))
 
 
 async def main():
