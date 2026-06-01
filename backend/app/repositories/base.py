@@ -1,7 +1,7 @@
-"""Generic Repository Pattern implementation."""
-from typing import TypeVar, Generic, Type, Optional, List, Any
+"""Base repository — generic CRUD operations."""
+from typing import TypeVar, Generic, Type, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, desc
 from app.db.base import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -15,30 +15,23 @@ class BaseRepository(Generic[ModelType]):
     async def get_by_id(self, id: int) -> Optional[ModelType]:
         return await self.session.get(self.model, id)
 
-    async def get_multi(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        stmt = select(self.model).offset(skip).limit(limit)
+    async def get_all(self, limit: int = 100, offset: int = 0) -> List[ModelType]:
+        stmt = select(self.model).limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def create(self, obj_in: dict) -> ModelType:
-        db_obj = self.model(**obj_in)
-        self.session.add(db_obj)
+    async def create(self, **kwargs) -> ModelType:
+        instance = self.model(**kwargs)
+        self.session.add(instance)
         await self.session.flush()
-        await self.session.refresh(db_obj)
-        return db_obj
+        return instance
 
-    async def update(self, db_obj: ModelType, obj_in: dict) -> ModelType:
-        for key, value in obj_in.items():
-            setattr(db_obj, key, value)
+    async def update(self, instance: ModelType, **kwargs) -> ModelType:
+        for key, value in kwargs.items():
+            setattr(instance, key, value)
         await self.session.flush()
-        await self.session.refresh(db_obj)
-        return db_obj
+        return instance
 
-    async def delete(self, db_obj: ModelType) -> None:
-        await self.session.delete(db_obj)
+    async def delete(self, instance: ModelType) -> None:
+        await self.session.delete(instance)
         await self.session.flush()
-
-    async def count(self) -> int:
-        stmt = select(func.count(self.model.id))
-        result = await self.session.execute(stmt)
-        return result.scalar() or 0
