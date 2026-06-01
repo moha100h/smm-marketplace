@@ -15,7 +15,10 @@ router = Router()
 async def cmd_start(msg: Message, session: AsyncSession):
     """Handle /start command."""
     tg_id = msg.from_user.id
-    user = await session.get(User, tg_id)
+
+    # Query by tg_id (NOT session.get which uses User.id)
+    r = await session.execute(select(User).where(User.tg_id == tg_id))
+    user = r.scalar_one_or_none()
 
     if not user:
         # Check referral
@@ -30,8 +33,8 @@ async def cmd_start(msg: Message, session: AsyncSession):
         )
 
         if ref_code:
-            r = await session.execute(select(User).where(User.referral_code == ref_code))
-            referrer = r.scalar_one_or_none()
+            r2 = await session.execute(select(User).where(User.referral_code == ref_code))
+            referrer = r2.scalar_one_or_none()
             if referrer:
                 user.referred_by_id = referrer.id
 
@@ -70,7 +73,8 @@ async def support_main(cb: CallbackQuery):
 @router.callback_query(F.data == "referral:main")
 async def referral_main(cb: CallbackQuery, session: AsyncSession):
     """Show referral info."""
-    user = await session.get(User, cb.from_user.id)
+    r = await session.execute(select(User).where(User.tg_id == cb.from_user.id))
+    user = r.scalar_one_or_none()
     if not user:
         await cb.answer("کاربر یافت نشد", show_alert=True)
         return
