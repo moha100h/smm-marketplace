@@ -1,4 +1,4 @@
-"""Panel, Category, SubCategory, Service models — marketplace hierarchy."""
+"""Panel, Category, SubCategory, Service models."""
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey
 from sqlalchemy.orm import relationship
