@@ -90,8 +90,9 @@ async def order_quantity(msg: Message, session: AsyncSession, state: FSMContext)
         await state.update_data(quantity=quantity, total_cost=total_cost)
 
         # Check balance
-        user = await session.get(User, msg.from_user.id)
-        if user.wallet_balance < total_cost:
+        r = await session.execute(select(User).where(User.tg_id == msg.from_user.id))
+        user = r.scalar_one_or_none()
+        if user and user.wallet_balance < total_cost:
             await msg.answer(
                 f"⚠️ موجودی کافی نیست.\n\n"
                 f"هزینه: {fmt_price(total_cost)} تومان\n"
