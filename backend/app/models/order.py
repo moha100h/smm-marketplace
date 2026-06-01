@@ -22,7 +22,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     price_per_1000 = Column(Integer, nullable=False)
