@@ -1,103 +1,58 @@
-"""Start handler — /start, registration, main menu."""
+"""Start handler — /start, registration, language, main menu."""
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.user import User
-from app.bot.keyboards.menus import main_menu_kb
+from app.bot.keyboards.inline import main_menu_kb, lang_select_kb
+from app.core.i18n import get_text
 from app.core.config import settings
 
 router = Router()
 
 
 @router.message(Command("start"))
-async def cmd_start(msg: Message, session: AsyncSession):
-    """Handle /start command."""
-    tg_id = msg.from_user.id
-
-    # Query by tg_id (NOT session.get which uses User.id)
-    r = await session.execute(select(User).where(User.tg_id == tg_id))
-    user = r.scalar_one_or_none()
-
-    if not user:
-        # Check referral
-        ref_code = None
-        if msg.text and len(msg.text.split()) > 1:
-            ref_code = msg.text.split()[1]
-
-        user = User(
-            tg_id=tg_id,
-            username=msg.from_user.username,
-            full_name=msg.from_user.full_name,
-        )
-
-        if ref_code:
-            r2 = await session.execute(select(User).where(User.referral_code == ref_code))
-            referrer = r2.scalar_one_or_none()
-            if referrer:
-                user.referred_by_id = referrer.id
-
-        session.add(user)
-        await session.flush()
-        welcome = f"🎉 خوش آمدید {msg.from_user.full_name or 'کاربر'}!\n\nبه مارکت‌پلیس SMM خوش آمدید."
-    else:
-        welcome = f"👋 سلام {user.full_name or 'کاربر'}! خوش برگشتید."
-
-    await msg.answer(welcome, reply_markup=main_menu_kb().as_markup())
-
-
-@router.message(F.text == "🏠 منوی اصلی")
-@router.callback_query(F.data == "nav:main")
-async def show_main_menu(event, session: AsyncSession):
-    """Show main menu."""
-    if isinstance(event, CallbackQuery):
-        await event.message.edit_text("🏠 منوی اصلی:", reply_markup=main_menu_kb().as_markup())
-        await event.answer()
-    else:
-        await event.answer("🏠 منوی اصلی:", reply_markup=main_menu_kb().as_markup())
-
-
-@router.callback_query(F.data == "support:main")
-async def support_main(cb: CallbackQuery):
-    """Show support info."""
-    admin_ids = settings.admin_ids_list
-    admin_links = ", ".join([f"tg://user?id={aid}" for aid in admin_ids])
-    await cb.message.edit_text(
-        f"🎫 پشتیبانی\n\nبرای ارتباط با ادمین:\n{admin_links}",
-        reply_markup=main_menu_kb().as_markup(),
-    )
-    await cb.answer()
-
-
-@router.callback_query(F.data == "referral:main")
-async def referral_main(cb: CallbackQuery, session: AsyncSession):
-    """Show referral info."""
-    r = await session.execute(select(User).where(User.tg_id == cb.from_user.id))
-    user = r.scalar_one_or_none()
-    if not user:
-        await cb.answer("کاربر یافت نشد", show_alert=True)
+async def cmd_start(msg: Message, session: AsyncSession, user: User, lang: str):
+    """Handle /start — show language picker for new users, main menu for existing."""
+    # Check if this is a fresh registration (no language set yet)
+    if user.language == "fa" and not user.full_name:
+        # Brand new user — show language selection
+        welcome = get_text("fa", "welcome")
+        await msg.answer(welcome, reply_markup=lang_select_kb().as_markup())
         return
 
-    if not user.referral_code:
-        import secrets
-        user.referral_code = secrets.token_hex(6)
+    # Existing user — show main menu
+    name = user.full_name or msg.from_user.full_name or ""
+    text = get_text(lang, "welcome_back", name=name)
+    await msg.answer(text, reply_markup=main_menu_kb(lang).as_markup())
+
+
+@router.callback_query(F.data == "nav:main")
+async def show_main_menu(cb: CallbackQuery, session: AsyncSession, user: User, lang: str):
+    """Show main menu."""
+    text = get_text(lang, "main_menu")
+    await cb.message.edit_text(text, reply_markup=main_menu_kb(lang).as_markup())
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("set:lang"))
+async def select_language(cb: CallbackQuery, session: AsyncSession, user: User):
+    """Handle language selection."""
+    parts = cb.data.split(":")
+    if len(parts) == 3:
+        # User selected a language
+        new_lang = parts[2]
+        user.language = new_lang
         await session.flush()
 
-    ref_link = f"https://t.me/{(await cb.bot.get_me()).username}?start={user.referral_code}"
-    await cb.message.edit_text(
-        f"🎁 دعوت دوستان\n\nلینک دعوت شما:\n`{ref_link}`\n\n"
-        f"با هر دعوت {settings.REFERRAL_COMMISSION_PERCENT}% پاداش بگیرید!",
-        reply_markup=main_menu_kb().as_markup(),
-    )
-    await cb.answer()
-
-
-@router.callback_query(F.data == "set:main")
-async def settings_main(cb: CallbackQuery):
-    """Show settings menu."""
-    await cb.message.edit_text(
-        "⚙️ تنظیمات\n\nبه زودی...",
-        reply_markup=main_menu_kb().as_markup(),
-    )
-    await cb.answer()
+        text = get_text(new_lang, "lang_changed")
+        await cb.message.edit_text(text, reply_markup=main_menu_kb(new_lang).as_markup())
+        await cb.answer()
+    else:
+        # Show language selection
+        await cb.message.edit_text(
+            "🌐 زبان / Language\n\nزبان خود را انتخاب کنید:\nSelect your language:",
+            reply_markup=lang_select_kb().as_markup(),
+        )
+        await cb.answer()
