@@ -1,23 +1,21 @@
-"""All models — import here for Alembic autogenerate."""
-from app.db.base import Base
+"""All models — import here so SQLAlchemy discovers them."""
 from app.models.user import User, LoyaltyLevel
-from app.models.panel import Panel, Category, SubCategory, Service, ServiceStatus, PricingMode
-from app.models.provider import Provider, ServiceProviderMapping, ProviderStatus, MappingType
-from app.models.order import Order, ProviderOrder, OrderStatus
-from app.models.payment import Payment, Transaction, TransactionType, PaymentStatus, PaymentMethod
-from app.models.ticket import Ticket, TicketMessage, TicketPriority, TicketStatus
+from app.models.panel import Panel, Category, SubCategory, Service
+from app.models.provider import Provider, ProviderStatus, ServiceProviderMapping
+from app.models.order import Order, OrderStatus, ProviderOrder
+from app.models.payment import Payment, PaymentStatus, PaymentMethod, Transaction, TransactionType
+from app.models.ticket import Ticket, TicketStatus, TicketMessage
 from app.models.notification import Notification
 from app.models.order_form import OrderForm, FieldType
 from app.models.discount import Discount, DiscountType
 
 __all__ = [
-    "Base",
     "User", "LoyaltyLevel",
-    "Panel", "Category", "SubCategory", "Service", "ServiceStatus", "PricingMode",
-    "Provider", "ServiceProviderMapping", "ProviderStatus", "MappingType",
-    "Order", "ProviderOrder", "OrderStatus",
-    "Payment", "Transaction", "TransactionType", "PaymentStatus", "PaymentMethod",
-    "Ticket", "TicketMessage", "TicketPriority", "TicketStatus",
+    "Panel", "Category", "SubCategory", "Service",
+    "Provider", "ProviderStatus", "ServiceProviderMapping",
+    "Order", "OrderStatus", "ProviderOrder",
+    "Payment", "PaymentStatus", "PaymentMethod", "Transaction", "TransactionType",
+    "Ticket", "TicketStatus", "TicketMessage",
     "Notification",
     "OrderForm", "FieldType",
     "Discount", "DiscountType",
