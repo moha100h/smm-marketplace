@@ -1,61 +1,47 @@
-"""Telegram Bot initialization and dispatcher setup."""
-import asyncio
+"""Bot setup — create, configure, start."""
 import logging
-from typing import Callable, Dict, Any, Awaitable
-from aiogram import Bot, Dispatcher, BaseMiddleware
-from aiogram.types import TelegramObject
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
 from app.core.config import settings
 from app.db.database import async_session
+from app.bot.middlewares import DatabaseMiddleware, UserMiddleware
 
 logger = logging.getLogger(__name__)
 
 
-class DbSessionMiddleware(BaseMiddleware):
-    """Inject SQLAlchemy session into every handler."""
-    def __init__(self, session_factory: async_sessionmaker):
-        self.session_factory = session_factory
-
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-        event: TelegramObject,
-        data: Dict[str, Any],
-    ) -> Any:
-        async with self.session_factory() as session:
-            data["session"] = session
-            return await handler(event, data)
-
-
 def create_bot() -> Bot:
-    return Bot(
-        token=settings.BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode="HTML"),
-    )
+    return Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
 
-def create_dispatcher() -> Dispatcher:
+def create_dp() -> Dispatcher:
     dp = Dispatcher(storage=MemoryStorage())
-    dp.update.middleware(DbSessionMiddleware(async_session))
+
+    # Middlewares
+    dp.update.middleware(DatabaseMiddleware(async_session))
+    dp.update.middleware(UserMiddleware())
+
+    # Register routers
+    from app.bot.handlers.start import router as start_router
+    from app.bot.handlers.wallet import router as wallet_router
+    from app.bot.handlers.orders import router as orders_router
+    from app.bot.handlers.admin import router as admin_router
+    from app.bot.handlers.settings import router as settings_router
+    from app.bot.handlers.support import router as support_router
+
+    dp.include_router(start_router)
+    dp.include_router(wallet_router)
+    dp.include_router(orders_router)
+    dp.include_router(admin_router)
+    dp.include_router(settings_router)
+    dp.include_router(support_router)
+
     return dp
 
 
 async def start_bot():
-    """Start polling — called from main.py."""
-    from app.bot.handlers import start, orders, wallet, services, admin
-
     bot = create_bot()
-    dp = create_dispatcher()
-
-    # Register routers (admin first for priority)
-    dp.include_router(admin.router)
-    dp.include_router(start.router)
-    dp.include_router(orders.router)
-    dp.include_router(wallet.router)
-    dp.include_router(services.router)
-
-    await bot.delete_webhook(drop_pending_updates=True)
+    dp = create_dp()
     logger.info("Bot started — polling...")
     await dp.start_polling(bot)
