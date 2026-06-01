@@ -11,7 +11,6 @@ from app.models.user import User
 from app.models.order import Order, OrderStatus
 from app.models.payment import Payment, PaymentStatus, Transaction, TransactionType
 from app.models.ticket import Ticket, TicketStatus, TicketMessage
-from app.models.panel import Panel, Category, Service
 from app.core.i18n import get_text
 from app.core.config import settings
 from app.bot.keyboards.inline import admin_menu_kb, back_kb
@@ -21,9 +20,7 @@ router = Router()
 
 class AdminState(StatesGroup):
     add_balance = State()
-    add_panel = State()
-    add_category = State()
-    add_service = State()
+    ticket_reply = State()
 
 
 def fmt(n: float) -> str:
@@ -32,15 +29,6 @@ def fmt(n: float) -> str:
 
 def is_admin(user: User) -> bool:
     return user.is_admin or user.tg_id in settings.admin_ids_list
-
-
-@router.callback_query(F.data == "admin:main")
-async def admin_main(cb: CallbackQuery, user: User, lang: str):
-    if not is_admin(user):
-        await cb.answer(get_text(lang, "not_admin"), show_alert=True)
-        return
-    await cb.message.edit_text(get_text(lang, "admin_menu"), reply_markup=admin_menu_kb(lang).as_markup())
-    await cb.answer()
 
 
 @router.callback_query(F.data == "admin:stats")
@@ -72,16 +60,16 @@ async def admin_deposits(cb: CallbackQuery, session: AsyncSession, user: User, l
     if not deps:
         text = get_text(lang, "no_pending_deposits")
     else:
-        lines = ["💳 <b>درخواست‌های واریز</b>\n"]
+        lines = ["\U0001f4b3 <b>درخواست\u200cهای واریز</b>\n"]
         for d in deps:
-            lines.append(f"🔹 #{d.id} | {fmt(d.amount)} | @{d.user_id} | {d.method.value}")
+            lines.append(f"\U0001f539 #{d.id} | {fmt(d.amount)} | <code>{d.user_id}</code> | {d.method.value}")
         text = "\n".join(lines)
 
     kb = InlineKeyboardBuilder()
     for d in deps:
         kb.row(
-            InlineKeyboardButton(text=f"✅ #{d.id}", callback_data=f"admin:dep:approve:{d.id}"),
-            InlineKeyboardButton(text=f"❌ #{d.id}", callback_data=f"admin:dep:reject:{d.id}"),
+            InlineKeyboardButton(text=f"\u2705 #{d.id}", callback_data=f"admin:dep:approve:{d.id}"),
+            InlineKeyboardButton(text=f"\u274c #{d.id}", callback_data=f"admin:dep:reject:{d.id}"),
         )
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:main"))
 
@@ -96,13 +84,13 @@ async def admin_deposit_action(cb: CallbackQuery, session: AsyncSession, user: U
     action, pid = parts[2], int(parts[3])
     payment = await session.get(Payment, pid)
     if not payment:
-        await cb.answer("❌ یافت نشد", show_alert=True)
+        await cb.answer("\u274c یافت نشد", show_alert=True)
         return
 
     r = await session.execute(select(User).where(User.tg_id == payment.user_id))
     target = r.scalar_one_or_none()
     if not target:
-        await cb.answer("❌ کاربر یافت نشد", show_alert=True)
+        await cb.answer("\u274c کاربر یافت نشد", show_alert=True)
         return
 
     if action == "approve":
@@ -115,13 +103,13 @@ async def admin_deposit_action(cb: CallbackQuery, session: AsyncSession, user: U
         try:
             await cb.bot.send_message(target.tg_id, get_text(lang, "deposit_approved", amount=fmt(payment.amount), balance=fmt(target.wallet_balance)))
         except: pass
-        await cb.message.edit_text(f"✅ واریز #{pid} تأیید شد.")
+        await cb.message.edit_text(f"\u2705 واریز #{pid} تأیید شد.")
     else:
         payment.status = PaymentStatus.REJECTED
         try:
             await cb.bot.send_message(target.tg_id, get_text(lang, "deposit_rejected", amount=fmt(payment.amount)))
         except: pass
-        await cb.message.edit_text(f"❌ واریز #{pid} رد شد.")
+        await cb.message.edit_text(f"\u274c واریز #{pid} رد شد.")
     await session.flush()
     await cb.answer()
 
@@ -132,14 +120,14 @@ async def admin_orders(cb: CallbackQuery, session: AsyncSession, user: User, lan
     if not is_admin(user): return
     r = await session.execute(select(Order).order_by(desc(Order.created_at)).limit(20))
     orders = r.scalars().all()
-    lines = ["📦 <b>سفارشات اخیر</b>\n"]
+    lines = ["\U0001f4e6 <b>سفارشات اخیر</b>\n"]
     for o in orders:
-        lines.append(f"🔹 #{o.id} | {o.status.value} | {fmt(o.total_cost)} | @{o.user_id}")
+        lines.append(f"\U0001f539 #{o.id} | {o.status.value} | {fmt(o.total_cost)} | <code>{o.user_id}</code>")
     text = "\n".join(lines)
 
     kb = InlineKeyboardBuilder()
     for o in orders:
-        kb.row(InlineKeyboardButton(text=f"📋 #{o.id}", callback_data=f"admin:ord:view:{o.id}"))
+        kb.row(InlineKeyboardButton(text=f"\U0001f4cb #{o.id}", callback_data=f"admin:ord:view:{o.id}"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:main"))
 
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
@@ -152,25 +140,25 @@ async def admin_order_view(cb: CallbackQuery, session: AsyncSession, user: User,
     oid = int(cb.data.split(":")[3])
     order = await session.get(Order, oid)
     if not order:
-        await cb.answer("❌", show_alert=True)
+        await cb.answer("\u274c", show_alert=True)
         return
     text = (
-        f"📦 <b>سفارش #{order.id}</b>\n\n"
-        f"👤 کاربر: <code>{order.user_id}</code>\n"
-        f"🛒 سرویس: <code>{order.service_id}</code>\n"
-        f"🔢 تعداد: {order.quantity}\n"
-        f"💰 هزینه: {fmt(order.total_cost)}\n"
-        f"📊 وضعیت: {order.status.value}\n"
-        f"📝 داده: {order.form_data or '-'}"
+        f"\U0001f4e6 <b>سفارش #{order.id}</b>\n\n"
+        f"\U0001f464 کاربر: <code>{order.user_id}</code>\n"
+        f"\U0001f6d2 سرویس: <code>{order.service_id}</code>\n"
+        f"\U0001f522 تعداد: {order.quantity}\n"
+        f"\U0001f4b0 هزینه: {fmt(order.total_cost)}\n"
+        f"\U0001f4ca وضعیت: {order.status.value}\n"
+        f"\U0001f4dd داده: {order.form_data or '-'}"
     )
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="✅ تکمیل", callback_data=f"admin:ord:completed:{oid}"),
-        InlineKeyboardButton(text="🔄 پردازش", callback_data=f"admin:ord:processing:{oid}"),
+        InlineKeyboardButton(text="\u2705 تکمیل", callback_data=f"admin:ord:completed:{oid}"),
+        InlineKeyboardButton(text="\U0001f504 پردازش", callback_data=f"admin:ord:processing:{oid}"),
     )
     kb.row(
-        InlineKeyboardButton(text="❌ رد", callback_data=f"admin:ord:rejected:{oid}"),
-        InlineKeyboardButton(text="↩️ بازگشت", callback_data=f"admin:ord:refunded:{oid}"),
+        InlineKeyboardButton(text="\u274c رد", callback_data=f"admin:ord:rejected:{oid}"),
+        InlineKeyboardButton(text="\u21a9\ufe0f بازگشت", callback_data=f"admin:ord:refunded:{oid}"),
     )
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:orders"))
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
@@ -185,8 +173,12 @@ async def admin_order_action(cb: CallbackQuery, session: AsyncSession, user: Use
     order = await session.get(Order, oid)
     if not order: return
 
-    new_status = OrderStatus(action)
-    order.status = new_status
+    try:
+        new_status = OrderStatus(action)
+        order.status = new_status
+    except ValueError:
+        await cb.answer("\u274c", show_alert=True)
+        return
 
     if action in ("rejected", "refunded"):
         refund = order.total_cost - order.refunded_amount
@@ -201,11 +193,11 @@ async def admin_order_action(cb: CallbackQuery, session: AsyncSession, user: Use
                                  description=f"Refund for order #{oid}")
                 session.add(tx)
                 try:
-                    await cb.bot.send_message(target.tg_id, f"↩️ سفارش #{oid} رد/بازگشت شد.\nمبلغ بازگشتی: {fmt(refund)} تومان")
+                    await cb.bot.send_message(target.tg_id, f"\u21a9\ufe0f سفارش #{oid} رد/بازگشت شد.\nمبلغ بازگشتی: {fmt(refund)} تومان")
                 except: pass
 
     await session.flush()
-    await cb.message.edit_text(f"✅ وضعیت سفارش #{oid} به {action} تغییر کرد.")
+    await cb.message.edit_text(f"\u2705 وضعیت سفارش #{oid} به {action} تغییر کرد.")
     await cb.answer()
 
 
@@ -215,13 +207,13 @@ async def admin_users(cb: CallbackQuery, session: AsyncSession, user: User, lang
     if not is_admin(user): return
     r = await session.execute(select(User).order_by(desc(User.registered_at)).limit(20))
     users = r.scalars().all()
-    lines = ["👥 <b>کاربران اخیر</b>\n"]
+    lines = ["\U0001f465 <b>کاربران اخیر</b>\n"]
     for u in users:
-        lines.append(f"🔹 @{u.tg_id} | {u.full_name or '-'} | {fmt(u.wallet_balance)} | {u.loyalty_level.value}")
+        lines.append(f"\U0001f539 <code>{u.tg_id}</code> | {u.full_name or '-'} | {fmt(u.wallet_balance)} | {u.loyalty_level.value}")
     text = "\n".join(lines)
     kb = InlineKeyboardBuilder()
     for u in users:
-        kb.row(InlineKeyboardButton(text=f"👤 {u.tg_id}", callback_data=f"admin:usr:view:{u.tg_id}"))
+        kb.row(InlineKeyboardButton(text=f"\U0001f464 {u.tg_id}", callback_data=f"admin:usr:view:{u.tg_id}"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:main"))
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
     await cb.answer()
@@ -235,15 +227,15 @@ async def admin_user_view(cb: CallbackQuery, session: AsyncSession, user: User, 
     target = r.scalar_one_or_none()
     if not target: return
     text = (
-        f"👤 <b>کاربر {target.tg_id}</b>\n\n"
-        f"📛 نام: {target.full_name or '-'}\n"
-        f"💰 موجودی: {fmt(target.wallet_balance)}\n"
-        f"📊 کل خرید: {fmt(target.total_spent)}\n"
-        f"⭐ سطح: {target.loyalty_level.value}\n"
-        f"🔢 سفارشات: {target.total_orders}"
+        f"\U0001f464 <b>کاربر {target.tg_id}</b>\n\n"
+        f"\U0001f4db نام: {target.full_name or '-'}\n"
+        f"\U0001f4b0 موجودی: {fmt(target.wallet_balance)}\n"
+        f"\U0001f4ca کل خرید: {fmt(target.total_spent)}\n"
+        f"\u2b50 سطح: {target.loyalty_level.value}\n"
+        f"\U0001f522 سفارشات: {target.total_orders}"
     )
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="💳 افزودن موجودی", callback_data=f"admin:usr:addbal:{tid}"))
+    kb.row(InlineKeyboardButton(text="\U0001f4b3 افزودن موجودی", callback_data=f"admin:usr:addbal:{tid}"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:users"))
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
     await cb.answer()
@@ -253,7 +245,7 @@ async def admin_user_view(cb: CallbackQuery, session: AsyncSession, user: User, 
 async def admin_add_balance_start(cb: CallbackQuery, state: FSMContext, lang: str):
     tid = int(cb.data.split(":")[3])
     await state.update_data(target_id=tid)
-    await cb.message.edit_text("💳 مبلغ افزایش موجودی را وارد کنید:")
+    await cb.message.edit_text("\U0001f4b3 مبلغ افزایش موجودی را وارد کنید:")
     await state.set_state(AdminState.add_balance)
     await cb.answer()
 
@@ -273,10 +265,10 @@ async def admin_add_balance_process(msg: Message, session: AsyncSession, state: 
                          description="Admin manual deposit")
         session.add(tx)
         await session.flush()
-        await msg.answer(f"✅ موجودی کاربر {tid} به میزان {fmt(amount)} افزایش یافت.", reply_markup=back_kb(lang, "admin:main").as_markup())
+        await msg.answer(f"\u2705 موجودی کاربر <code>{tid}</code> به میزان {fmt(amount)} افزایش یافت.", reply_markup=back_kb(lang, "admin:main").as_markup(), parse_mode="HTML")
         await state.clear()
     except:
-        await msg.answer("⚠️ عدد معتبر وارد کنید.")
+        await msg.answer("\u26a0\ufe0f عدد معتبر وارد کنید.")
 
 
 # ── Tickets ──
@@ -285,13 +277,13 @@ async def admin_tickets(cb: CallbackQuery, session: AsyncSession, user: User, la
     if not is_admin(user): return
     r = await session.execute(select(Ticket).where(Ticket.status != TicketStatus.CLOSED).order_by(desc(Ticket.updated_at)).limit(20))
     tickets = r.scalars().all()
-    lines = ["🎫 <b>تیکت‌های باز</b>\n"]
+    lines = ["\U0001f3ab <b>تیکت\u200cهای باز</b>\n"]
     for t in tickets:
-        lines.append(f"🔹 #{t.id} | {t.subject} | @{t.user_id} | {t.status.value}")
+        lines.append(f"\U0001f539 #{t.id} | {t.subject} | <code>{t.user_id}</code> | {t.status.value}")
     text = "\n".join(lines)
     kb = InlineKeyboardBuilder()
     for t in tickets:
-        kb.row(InlineKeyboardButton(text=f"🎫 #{t.id}", callback_data=f"admin:tkt:view:{t.id}"))
+        kb.row(InlineKeyboardButton(text=f"\U0001f3ab #{t.id}", callback_data=f"admin:tkt:view:{t.id}"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:main"))
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
     await cb.answer()
@@ -305,14 +297,14 @@ async def admin_ticket_view(cb: CallbackQuery, session: AsyncSession, user: User
     if not ticket: return
     r = await session.execute(select(TicketMessage).where(TicketMessage.ticket_id == tid).order_by(TicketMessage.created_at))
     msgs = r.scalars().all()
-    lines = [f"🎫 <b>تیکت #{tid}: {ticket.subject}</b>\n"]
+    lines = [f"\U0001f3ab <b>تیکت #{tid}: {ticket.subject}</b>\n"]
     for m in msgs:
-        sender = "👑 ادمین" if m.is_admin else f"👤 {m.sender_id}"
+        sender = "\U0001f451 ادمین" if m.is_admin else f"\U0001f464 {m.sender_id}"
         lines.append(f"{sender}: {m.text}")
     text = "\n".join(lines)
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="📝 پاسخ", callback_data=f"admin:tkt:reply:{tid}"))
-    kb.row(InlineKeyboardButton(text="✅ بستن", callback_data=f"admin:tkt:close:{tid}"))
+    kb.row(InlineKeyboardButton(text="\U0001f4dd پاسخ", callback_data=f"admin:tkt:reply:{tid}"))
+    kb.row(InlineKeyboardButton(text="\u2705 بستن", callback_data=f"admin:tkt:close:{tid}"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:tickets"))
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
     await cb.answer()
@@ -322,12 +314,12 @@ async def admin_ticket_view(cb: CallbackQuery, session: AsyncSession, user: User
 async def admin_ticket_reply_start(cb: CallbackQuery, state: FSMContext, lang: str):
     tid = int(cb.data.split(":")[3])
     await state.update_data(ticket_id=tid)
-    await cb.message.edit_text("📝 متن پاسخ را وارد کنید:")
-    await state.set_state(AdminState.add_balance) # reuse state for simplicity
+    await cb.message.edit_text("\U0001f4dd متن پاسخ را وارد کنید:")
+    await state.set_state(AdminState.ticket_reply)
     await cb.answer()
 
 
-@router.message(AdminState.add_balance)
+@router.message(AdminState.ticket_reply)
 async def admin_ticket_reply_process(msg: Message, session: AsyncSession, state: FSMContext, lang: str):
     data = await state.get_data()
     tid = data.get("ticket_id")
@@ -339,9 +331,9 @@ async def admin_ticket_reply_process(msg: Message, session: AsyncSession, state:
     ticket.status = TicketStatus.IN_PROGRESS
     await session.flush()
     try:
-        await msg.bot.send_message(ticket.user_id, f"🎫 پاسخ ادمین به تیکت #{tid}:\n{msg.text}")
+        await msg.bot.send_message(ticket.user_id, f"\U0001f3ab پاسخ ادمین به تیکت #{tid}:\n{msg.text}")
     except: pass
-    await msg.answer("✅ پاسخ ارسال شد.", reply_markup=back_kb(lang, "admin:tickets").as_markup())
+    await msg.answer("\u2705 پاسخ ارسال شد.", reply_markup=back_kb(lang, "admin:tickets").as_markup())
     await state.clear()
 
 
@@ -353,5 +345,5 @@ async def admin_ticket_close(cb: CallbackQuery, session: AsyncSession, user: Use
     if ticket:
         ticket.status = TicketStatus.CLOSED
         await session.flush()
-    await cb.message.edit_text(f"✅ تیکت #{tid} بسته شد.")
+    await cb.message.edit_text(f"\u2705 تیکت #{tid} بسته شد.")
     await cb.answer()
