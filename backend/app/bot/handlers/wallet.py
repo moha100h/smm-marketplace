@@ -21,18 +21,12 @@ async def show_wallet(msg: Message, session: AsyncSession):
         return
 
     text = (
-        f"💰 <b>کیف پول / Wallet</b>
-"
-        f"━━━━━━━━━━━━━━━━━━
-"
-        f"💎 موجودی: <b>{fmt_price(user.wallet_balance)}</b>
-"
-        f"🏆 سطح: <b>{user.loyalty_level.value}</b>
-"
-        f"📊 کل سفارشات: <b>{user.total_orders}</b>
-"
-        f"💸 کل هزینه: <b>{fmt_price(user.total_spent)}</b>
-"
+        f"💰 <b>کیف پول / Wallet</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"💎 موجودی: <b>{fmt_price(user.wallet_balance)}</b>\n"
+        f"🏆 سطح: <b>{user.loyalty_level.value}</b>\n"
+        f"📊 کل سفارشات: <b>{user.total_orders}</b>\n"
+        f"💸 کل هزینه: <b>{fmt_price(user.total_spent)}</b>\n"
         f"━━━━━━━━━━━━━━━━━━"
     )
 
@@ -47,20 +41,10 @@ async def show_wallet(msg: Message, session: AsyncSession):
 @router.callback_query(F.data == "wallet:deposit")
 async def wallet_deposit(cb: CallbackQuery):
     text = (
-        f"💳 <b>شارژ کیف پول / Deposit</b>
-
-"
-        f"مبلغ را به یکی از آدرس‌های زیر واریز کنید:
-
-"
-        f"🔵 <b>USDT TRC20:</b>
-<code>{settings.USDT_TRC20_ADDRESS or 'تنظیم نشده'}</code>
-
-"
-        f"🟡 <b>USDT BEP20:</b>
-<code>{settings.USDT_BEP20_ADDRESS or 'تنظیم نشده'}</code>
-
-"
+        f"💳 <b>شارژ کیف پول / Deposit</b>\n\n"
+        f"مبلغ را به یکی از آدرس‌های زیر واریز کنید:\n\n"
+        f"🔵 <b>USDT TRC20:</b>\n<code>{settings.USDT_TRC20_ADDRESS or 'تنظیم نشده'}</code>\n\n"
+        f"🟡 <b>USDT BEP20:</b>\n<code>{settings.USDT_BEP20_ADDRESS or 'تنظیم نشده'}</code>\n\n"
         f"پس از واریز، تصویر رسید را ارسال کنید."
     )
     kb = InlineKeyboardBuilder()
@@ -82,20 +66,18 @@ async def wallet_transactions(cb: CallbackQuery, session: AsyncSession):
     txs = result.scalars().all()
 
     if not txs:
-        await cb.message.edit_text("📋 تراکنشی یافت نشد / No transactions", reply_markup=InlineKeyboardBuilder().row(
-            InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main")
-        ).as_markup())
+        kb = InlineKeyboardBuilder()
+        kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
+        await cb.message.edit_text("📋 تراکنشی یافت نشد / No transactions", reply_markup=kb.as_markup())
         await cb.answer()
         return
 
-    lines = ["📋 <b>آخرین تراکنش‌ها:</b>
-"]
+    lines = ["📋 <b>آخرین تراکنش‌ها:</b>\n"]
     for tx in txs:
         icon = "➕" if tx.amount > 0 else "➖"
         lines.append(f"{icon} {tx.description or tx.type.value}: <b>{fmt_price(abs(tx.amount))}</b>")
 
-    text = "
-".join(lines)
+    text = "\n".join(lines)
     kb = InlineKeyboardBuilder()
     kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
