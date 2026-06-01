@@ -36,7 +36,6 @@ class Order(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
-    # Relationships
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     service = relationship("Service", back_populates="orders", foreign_keys=[service_id])
     provider_orders = relationship("ProviderOrder", back_populates="order", foreign_keys="ProviderOrder.order_id", lazy="selectin")
