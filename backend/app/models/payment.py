@@ -1,7 +1,7 @@
 """Payment and Transaction models."""
 from datetime import datetime
 from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, ForeignKey, Float
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 from app.db.base import Base
 import enum
 
