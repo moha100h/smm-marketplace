@@ -5,7 +5,7 @@ from app.models.order import Order, OrderStatus, ProviderOrder
 from app.models.user import User
 from app.models.provider import Provider, ServiceProviderMapping
 from app.services.wallet_service import WalletService
-from app.adapters.provider_router import provider_router
+from app.adapters.provider_router import ProviderRouter
 from app.repositories.order_repo import OrderRepository
 import logging
 
@@ -17,6 +17,7 @@ class OrderService:
         self.session = session
         self.order_repo = OrderRepository(session)
         self.wallet_service = WalletService(session)
+        self.provider_router = ProviderRouter(session)
 
     async def create_order(
         self,
@@ -29,7 +30,7 @@ class OrderService:
         """Create order, deduct wallet, route to provider."""
         total_cost = (quantity * price_per_1000) // 1000
 
-        # Step 1: Deduct from wallet FIRST (before creating order)
+        # Step 1: Deduct from wallet FIRST
         user = await self.session.get(User, user_id)
         if user.wallet_balance < total_cost:
             raise ValueError("Insufficient wallet balance")
@@ -52,7 +53,7 @@ class OrderService:
         self.session.add(order)
         await self.session.flush()
 
-        # Step 3: Record transaction with correct order_id
+        # Step 3: Record transaction
         from app.models.payment import Transaction, TransactionType
         tx = Transaction(
             user_id=user_id,
@@ -95,12 +96,10 @@ class OrderService:
         remaining = order.quantity - delivered_quantity
 
         if remaining > 0:
-            # Calculate refund for undelivered portion
             refund_amount = (remaining * order.price_per_1000) // 1000
             order.refunded_amount += refund_amount
             order.status = OrderStatus.PARTIALLY_COMPLETED
 
-            # Process refund
             await self.wallet_service.process_refund(
                 user_id=order.user_id,
                 amount=refund_amount,
