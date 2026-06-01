@@ -34,7 +34,7 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", primaryjoin="Payment.user_id == User.tg_id")
+    user = relationship("User", primaryjoin="foreign(Payment.user_id) == User.tg_id")
 
     def __repr__(self):
         return f"<Payment #{self.id} {self.method.value} {self.amount}>"
@@ -62,7 +62,7 @@ class Transaction(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", primaryjoin="Transaction.user_id == User.tg_id", back_populates="transactions")
+    user = relationship("User", primaryjoin="foreign(Transaction.user_id) == User.tg_id", back_populates="transactions")
     order = relationship("Order", back_populates="transactions")
 
     def __repr__(self):
