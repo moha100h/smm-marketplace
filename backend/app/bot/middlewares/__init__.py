@@ -34,7 +34,14 @@ class UserMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        msg = event.message if isinstance(event, Message) else (event.callback_query.message if isinstance(event, CallbackQuery) else None)
+        # event IS the Message or CallbackQuery — not event.message
+        if isinstance(event, Message):
+            msg = event
+        elif isinstance(event, CallbackQuery):
+            msg = event.message
+        else:
+            return await handler(event, data)
+
         if not msg or not msg.from_user:
             return await handler(event, data)
 
