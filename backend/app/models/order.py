@@ -22,7 +22,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.tg_id"), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     price_per_1000 = Column(Integer, nullable=False)
@@ -36,7 +36,7 @@ class Order(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
-    user = relationship("User", back_populates="orders")
+    user = relationship("User", primaryjoin="Order.user_id == User.tg_id", back_populates="orders")
     service = relationship("Service", back_populates="orders")
     provider_orders = relationship("ProviderOrder", back_populates="order", lazy="selectin")
     transactions = relationship("Transaction", back_populates="order", lazy="selectin")
