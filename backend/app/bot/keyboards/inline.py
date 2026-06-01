@@ -23,6 +23,15 @@ def main_menu_kb(lang: str) -> InlineKeyboardBuilder:
     return kb
 
 
+def main_menu_with_admin_kb(lang: str) -> InlineKeyboardBuilder:
+    """Main menu with admin button for admins."""
+    kb = main_menu_kb(lang)
+    kb.row(
+        InlineKeyboardButton(text=get_text(lang, "admin_btn"), callback_data="admin:main"),
+    )
+    return kb
+
+
 def wallet_menu_kb(lang: str) -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
     kb.row(
@@ -42,63 +51,39 @@ def back_kb(lang: str, callback: str = "nav:main") -> InlineKeyboardBuilder:
 def admin_menu_kb(lang: str) -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="📊 آمار / Stats", callback_data="admin:stats"),
-        InlineKeyboardButton(text="💳 واریزها / Deposits", callback_data="admin:deposits"),
+        InlineKeyboardButton(text="\U0001f4ca آمار / Stats", callback_data="admin:stats"),
+        InlineKeyboardButton(text="\U0001f4b3 واریزها / Deposits", callback_data="admin:deposits"),
     )
     kb.row(
-        InlineKeyboardButton(text="📦 سفارشات / Orders", callback_data="admin:orders"),
-        InlineKeyboardButton(text="👥 کاربران / Users", callback_data="admin:users"),
+        InlineKeyboardButton(text="\U0001f4e6 سفارشات / Orders", callback_data="admin:orders"),
+        InlineKeyboardButton(text="\U0001f465 کاربران / Users", callback_data="admin:users"),
     )
     kb.row(
-        InlineKeyboardButton(text="🎫 تیکت‌ها / Tickets", callback_data="admin:tickets"),
-        InlineKeyboardButton(text="⚙️ تنظیمات / Settings", callback_data="admin:settings"),
+        InlineKeyboardButton(text="\U0001f3ab تیکت‌ها / Tickets", callback_data="admin:tickets"),
     )
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="nav:main"))
-    return kb
-
-
-def deposit_action_kb(payment_id: int, lang: str) -> InlineKeyboardBuilder:
-    kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text=get_text(lang, "approve_btn"), callback_data=f"admin:dep:approve:{payment_id}"),
-        InlineKeyboardButton(text=get_text(lang, "reject_btn"), callback_data=f"admin:dep:reject:{payment_id}"),
-    )
-    return kb
-
-
-def order_action_kb(order_id: int, lang: str) -> InlineKeyboardBuilder:
-    kb = InlineKeyboardBuilder()
-    kb.row(
-        InlineKeyboardButton(text="✅ تکمیل", callback_data=f"admin:ord:completed:{order_id}"),
-        InlineKeyboardButton(text="🔄 در حال انجام", callback_data=f"admin:ord:processing:{order_id}"),
-    )
-    kb.row(
-        InlineKeyboardButton(text="❌ رد", callback_data=f"admin:ord:rejected:{order_id}"),
-        InlineKeyboardButton(text="↩️ بازگشت", callback_data=f"admin:ord:refunded:{order_id}"),
-    )
-    kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="admin:orders"))
     return kb
 
 
 def lang_select_kb() -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
     kb.row(
-        InlineKeyboardButton(text="🇮🇷 فارسی", callback_data="set:lang:fa"),
-        InlineKeyboardButton(text="🇬🇧 English", callback_data="set:lang:en"),
+        InlineKeyboardButton(text="\U0001f1ee\U0001f1f7 فارسی", callback_data="set:lang:fa"),
+        InlineKeyboardButton(text="\U0001f1ec\U0001f1e7 English", callback_data="set:lang:en"),
     )
-    kb.row(InlineKeyboardButton(text="◀️ بازگشت / Back", callback_data="set:main"))
+    kb.row(InlineKeyboardButton(text="\u25c0\ufe0f بازگشت / Back", callback_data="nav:main"))
     return kb
 
 
 def settings_kb(lang: str) -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🌐 تغییر زبان / Change Language", callback_data="set:lang"))
+    kb.row(InlineKeyboardButton(text="\U0001f310 تغییر زبان / Change Language", callback_data="set:lang"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="nav:main"))
     return kb
 
 
 def support_kb(lang: str) -> InlineKeyboardBuilder:
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="📝 ارسال تیکت / Send Ticket", callback_data="ticket:new"))
+    kb.row(InlineKeyboardButton(text="\U0001f4dd ارسال تیکت / Send Ticket", callback_data="ticket:new"))
     kb.row(InlineKeyboardButton(text=get_text(lang, "back"), callback_data="nav:main"))
     return kb
