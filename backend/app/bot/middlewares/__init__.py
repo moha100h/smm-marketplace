@@ -1,7 +1,7 @@
 """Middlewares — DB session, user auto-register, language injection."""
 from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject, Message, CallbackQuery
+from aiogram.types import TelegramObject, Message, CallbackQuery, Update
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from sqlalchemy import select
 from app.models.user import User
@@ -25,6 +25,20 @@ class DatabaseMiddleware(BaseMiddleware):
             return await handler(event, data)
 
 
+def _extract_msg(event: TelegramObject) -> Message | None:
+    """Safely extract Message from Update, Message, or CallbackQuery."""
+    if isinstance(event, Message):
+        return event
+    if isinstance(event, CallbackQuery):
+        return event.message
+    if isinstance(event, Update):
+        if event.message:
+            return event.message
+        if event.callback_query:
+            return event.callback_query.message
+    return None
+
+
 class UserMiddleware(BaseMiddleware):
     """Load user from DB, auto-register, inject lang and is_admin."""
 
@@ -34,14 +48,7 @@ class UserMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        # event IS the Message or CallbackQuery — not event.message
-        if isinstance(event, Message):
-            msg = event
-        elif isinstance(event, CallbackQuery):
-            msg = event.message
-        else:
-            return await handler(event, data)
-
+        msg = _extract_msg(event)
         if not msg or not msg.from_user:
             return await handler(event, data)
 
@@ -54,10 +61,9 @@ class UserMiddleware(BaseMiddleware):
         user = r.scalar_one_or_none()
 
         if not user:
-            # Auto-register
             ref_code = None
-            if isinstance(event, Message) and event.text and len(event.text.split()) > 1:
-                ref_code = event.text.split()[1]
+            if msg.text and len(msg.text.split()) > 1:
+                ref_code = msg.text.split()[1]
 
             import secrets
             user = User(
