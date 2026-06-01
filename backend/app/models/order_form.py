@@ -1,19 +1,20 @@
-"""Dynamic order form models — custom fields per service."""
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, Enum as SAEnum
+"""OrderForm model — dynamic form fields for services."""
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Enum, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 import enum
 
 
-class FieldType(enum.Enum):
+class FieldType(str, enum.Enum):
     TEXT = "text"
+    TEXTAREA = "textarea"
     NUMBER = "number"
     URL = "url"
     SELECT = "select"
-    CHECKBOX = "checkbox"
-    FILE = "file"
     MULTI_SELECT = "multi_select"
-    TEXTAREA = "textarea"
+    CHECKBOX = "checkbox"
+    DATE = "date"
 
 
 class OrderForm(Base):
@@ -21,14 +22,15 @@ class OrderForm(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
-    field_name = Column(String, nullable=False)
-    field_label = Column(String, nullable=False)
-    field_label_en = Column(String, nullable=True)
-    field_type = Column(SAEnum(FieldType), default=FieldType.TEXT)
+    field_type = Column(Enum(FieldType), nullable=False)
+    field_label = Column(String(256), nullable=False)
+    field_placeholder = Column(String(256), nullable=True)
     is_required = Column(Boolean, default=True)
-    options = Column(Text, nullable=True)  # JSON array for select/multi_select
-    placeholder = Column(String, nullable=True)
-    placeholder_en = Column(String, nullable=True)
+    options = Column(Text, nullable=True)  # JSON for select/multi_select
     sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    service = relationship("Service", back_populates="order_forms")
+    service = relationship("Service", back_populates="form_fields", foreign_keys=[service_id])
+
+    def __repr__(self):
+        return f"<OrderForm {self.field_label} type={self.field_type.value}>"
