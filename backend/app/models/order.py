@@ -1,18 +1,18 @@
-"""Order & ProviderOrder models — complete order lifecycle."""
-from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, ForeignKey, Enum as SAEnum, Index
-from sqlalchemy.orm import relationship
+"""Order and ProviderOrder models."""
 from datetime import datetime
-import enum
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, ForeignKey, Float
+from sqlalchemy.orm import relationship
 from app.db.base import Base
+import enum
 
 
-class OrderStatus(enum.Enum):
+class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     AWAITING_REVIEW = "awaiting_review"
     ACCEPTED = "accepted"
     PROCESSING = "processing"
-    PARTIALLY_COMPLETED = "partially_completed"
     COMPLETED = "completed"
+    PARTIALLY_COMPLETED = "partially_completed"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
     REFUNDED = "refunded"
@@ -20,49 +20,46 @@ class OrderStatus(enum.Enum):
 
 class Order(Base):
     __tablename__ = "orders"
-    __table_args__ = (
-        Index("ix_orders_user_id", "user_id"),
-        Index("ix_orders_status", "status"),
-        Index("ix_orders_service_id", "service_id"),
-    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    user_id = Column(BigInteger, nullable=False, index=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
-    provider_order_id = Column(Integer, ForeignKey("provider_orders.id"), nullable=True)
-    status = Column(SAEnum(OrderStatus), default=OrderStatus.PENDING)
     quantity = Column(Integer, nullable=False)
-    charged_quantity = Column(Integer, nullable=True)  # actual delivered
     price_per_1000 = Column(Integer, nullable=False)
     total_cost = Column(Integer, nullable=False)
     paid_amount = Column(Integer, default=0)
+    charged_quantity = Column(Integer, default=0)
     refunded_amount = Column(Integer, default=0)
-    form_data = Column(Text, nullable=True)  # JSON string of form answers
-    admin_note = Column(Text, nullable=True)
+    form_data = Column(Text, nullable=True)
+    status = Column(Enum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
-    user = relationship("User", back_populates="orders")
+    # Relationships
     service = relationship("Service", back_populates="orders")
-    provider_order = relationship("ProviderOrder", back_populates="order")
-    transactions = relationship("Transaction", back_populates="order")
+    provider_orders = relationship("ProviderOrder", back_populates="order", foreign_keys="ProviderOrder.order_id")
+    transactions = relationship("Transaction", back_populates="order", foreign_keys="Transaction.order_id")
+
+    def __repr__(self):
+        return f"<Order #{self.id} status={self.status.value}>"
 
 
 class ProviderOrder(Base):
     __tablename__ = "provider_orders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     provider_id = Column(Integer, ForeignKey("providers.id"), nullable=False)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
-    provider_order_ref = Column(String, nullable=True)  # order ID on provider side
-    status = Column(String, default="pending")
-    quantity_ordered = Column(Integer, nullable=False)
-    quantity_delivered = Column(Integer, default=0)
-    cost = Column(Integer, nullable=False)
-    error_message = Column(Text, nullable=True)
+    provider_order_ref = Column(String(128), nullable=True)
+    provider_cost = Column(Float, nullable=True)
+    status = Column(String(32), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Relationships
+    order = relationship("Order", back_populates="provider_orders", foreign_keys=[order_id])
     provider = relationship("Provider", back_populates="provider_orders")
-    order = relationship("Order", back_populates="provider_order")
+
+    def __repr__(self):
+        return f"<ProviderOrder #{self.id} ref={self.provider_order_ref}>"
