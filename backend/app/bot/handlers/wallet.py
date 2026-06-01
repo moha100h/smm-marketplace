@@ -1,84 +1,120 @@
 """Wallet handler — balance, deposit, transactions."""
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from app.models.user import User
 from app.models.payment import Transaction
+from app.bot.keyboards.menus import wallet_menu_kb, main_menu_kb, back_btn
 from app.services.jalali import fmt_price
-from app.core.config import settings
 
 router = Router()
 
 
-@router.message(F.text.in_(["💰 کیف پول", "💰 Wallet"]))
-async def show_wallet(msg: Message, session: AsyncSession):
-    user = await session.get(User, msg.from_user.id)
+class DepositState(StatesGroup):
+    amount = State()
+    receipt = State()
+
+
+@router.callback_query(F.data == "wallet:main")
+async def wallet_main(cb: CallbackQuery, session: AsyncSession):
+    """Show wallet balance."""
+    user = await session.get(User, cb.from_user.id)
     if not user:
-        await msg.answer("⚠️ ابتدا ثبت‌نام کنید / Please register first")
+        await cb.answer("کاربر یافت نشد", show_alert=True)
         return
 
     text = (
-        f"💰 <b>کیف پول / Wallet</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"💎 موجودی: <b>{fmt_price(user.wallet_balance)}</b>\n"
-        f"🏆 سطح: <b>{user.loyalty_level.value}</b>\n"
-        f"📊 کل سفارشات: <b>{user.total_orders}</b>\n"
-        f"💸 کل هزینه: <b>{fmt_price(user.total_spent)}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━"
+        f"💰 کیف پول\n\n"
+        f"موجودی: {fmt_price(user.wallet_balance)} تومان\n"
+        f"کل خرید: {fmt_price(user.total_spent)} تومان\n"
+        f"سطح وفاداری: {user.loyalty_level.value}"
     )
-
-    kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="💳 شارژ کیف پول / Deposit", callback_data="wallet:deposit"))
-    kb.row(InlineKeyboardButton(text="📋 تراکنش‌ها / Transactions", callback_data="wallet:tx"))
-    kb.row(InlineKeyboardButton(text="🔙 بازگشت / Back", callback_data="nav:main"))
-
-    await msg.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+    await cb.message.edit_text(text, reply_markup=wallet_menu_kb().as_markup())
+    await cb.answer()
 
 
 @router.callback_query(F.data == "wallet:deposit")
-async def wallet_deposit(cb: CallbackQuery):
-    text = (
-        f"💳 <b>شارژ کیف پول / Deposit</b>\n\n"
-        f"مبلغ را به یکی از آدرس‌های زیر واریز کنید:\n\n"
-        f"🔵 <b>USDT TRC20:</b>\n<code>{settings.USDT_TRC20_ADDRESS or 'تنظیم نشده'}</code>\n\n"
-        f"🟡 <b>USDT BEP20:</b>\n<code>{settings.USDT_BEP20_ADDRESS or 'تنظیم نشده'}</code>\n\n"
-        f"پس از واریز، تصویر رسید را ارسال کنید."
+async def deposit_start(cb: CallbackQuery, state: FSMContext):
+    """Start deposit process."""
+    await cb.message.edit_text(
+        "💳 افزایش موجودی\n\nمبلغ مورد نظر را وارد کنید (تومان):",
+        reply_markup=main_menu_kb().as_markup(),
     )
-    kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="📸 ارسال رسید", callback_data="wallet:send_receipt"))
-    kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
-    await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+    await state.set_state(DepositState.amount)
     await cb.answer()
+
+
+@router.message(DepositState.amount)
+async def deposit_amount(msg: Message, state: FSMContext):
+    """Process deposit amount input."""
+    try:
+        amount = int(msg.text.replace(",", "").replace(" ", ""))
+        if amount < 10000:
+            await msg.answer("⚠️ حداقل مبلغ ۱۰,۰۰۰ تومان است.")
+            return
+        await state.update_data(amount=amount)
+        await msg.answer(
+            f"📋 مبلغ: {fmt_price(amount)} تومان\n\n"
+            f"لطفاً رسید پرداخت را ارسال کنید.",
+        )
+        await state.set_state(DepositState.receipt)
+    except ValueError:
+        await msg.answer("⚠️ لطفاً یک عدد معتبر وارد کنید.")
+
+
+@router.message(DepositState.receipt)
+async def deposit_receipt(msg: Message, state: FSMContext):
+    """Process deposit receipt (photo or text)."""
+    data = await state.get_data()
+    amount = data.get("amount", 0)
+
+    # Forward to admin
+    from app.core.config import settings
+    for admin_id in settings.admin_ids_list:
+        try:
+            if msg.photo:
+                await msg.bot.send_photo(
+                    admin_id,
+                    msg.photo[-1].file_id,
+                    caption=f"💳 درخواست واریز\n\nمبلغ: {fmt_price(amount)} تومان\nکاربر: {msg.from_user.full_name} ({msg.from_user.id})",
+                )
+            else:
+                await msg.bot.send_message(
+                    admin_id,
+                    f"💳 درخواست واریز\n\nمبلغ: {fmt_price(amount)} تومان\nکاربر: {msg.from_user.full_name} ({msg.from_user.id})\n\nتوضیحات: {msg.text}",
+                )
+        except Exception:
+            pass
+
+    await msg.answer("✅ رسید شما ارسال شد. پس از بررسی، موجودی شما افزایش می‌یابد.")
+    await state.clear()
 
 
 @router.callback_query(F.data == "wallet:tx")
 async def wallet_transactions(cb: CallbackQuery, session: AsyncSession):
-    stmt = (
+    """Show recent transactions."""
+    r = await session.execute(
         select(Transaction)
         .where(Transaction.user_id == cb.from_user.id)
-        .order_by(Transaction.created_at.desc())
+        .order_by(desc(Transaction.created_at))
         .limit(10)
     )
-    result = await session.execute(stmt)
-    txs = result.scalars().all()
+    txs = r.scalars().all()
 
     if not txs:
-        kb = InlineKeyboardBuilder()
-        kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
-        await cb.message.edit_text("📋 تراکنشی یافت نشد / No transactions", reply_markup=kb.as_markup())
-        await cb.answer()
-        return
+        text = "📊 تراکنش‌ها\n\nهنوز تراکنشی ندارید."
+    else:
+        lines = ["📊 تراکنش‌های اخیر:\n"]
+        for tx in txs:
+            sign = "+" if tx.amount > 0 else ""
+            lines.append(f"• {tx.type.value}: {sign}{tx.amount} | {tx.description or ''}")
+        text = "\n".join(lines)
 
-    lines = ["📋 <b>آخرین تراکنش‌ها:</b>\n"]
-    for tx in txs:
-        icon = "➕" if tx.amount > 0 else "➖"
-        lines.append(f"{icon} {tx.description or tx.type.value}: <b>{fmt_price(abs(tx.amount))}</b>")
-
-    text = "\n".join(lines)
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="nav:main"))
-    await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+    kb.row(back_btn)
+    await cb.message.edit_text(text, reply_markup=kb.as_markup())
     await cb.answer()
