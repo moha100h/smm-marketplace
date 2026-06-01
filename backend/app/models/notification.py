@@ -15,7 +15,7 @@ class Notification(Base):
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", primaryjoin="Notification.user_id == User.tg_id", back_populates="notifications")
+    user = relationship("User", primaryjoin="foreign(Notification.user_id) == User.tg_id", back_populates="notifications")
 
     def __repr__(self):
         return f"<Notification #{self.id} user={self.user_id}>"
