@@ -6,9 +6,10 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.models.user import User
-from app.models.payment import Transaction
-from app.bot.keyboards.menus import wallet_menu_kb, main_menu_kb, back_btn
-from app.services.jalali import fmt_price
+from app.models.payment import Transaction, Payment, PaymentStatus, PaymentMethod
+from app.bot.keyboards.inline import wallet_menu_kb, back_kb
+from app.core.i18n import get_text
+from app.core.config import settings
 
 router = Router()
 
@@ -18,104 +19,121 @@ class DepositState(StatesGroup):
     receipt = State()
 
 
-@router.callback_query(F.data == "wallet:main")
-async def wallet_main(cb: CallbackQuery, session: AsyncSession):
-    """Show wallet balance."""
-    r = await session.execute(select(User).where(User.tg_id == cb.from_user.id))
-    user = r.scalar_one_or_none()
-    if not user:
-        await cb.answer("کاربر یافت نشد", show_alert=True)
-        return
+def fmt(n: float) -> str:
+    return f"{n:,.0f}"
 
-    text = (
-        f"💰 کیف پول\n\n"
-        f"موجودی: {fmt_price(user.wallet_balance)} تومان\n"
-        f"کل خرید: {fmt_price(user.total_spent)} تومان\n"
-        f"سطح وفاداری: {user.loyalty_level.value}"
+
+@router.callback_query(F.data == "wallet:main")
+async def wallet_main(cb: CallbackQuery, session: AsyncSession, user: User, lang: str):
+    """Show wallet balance."""
+    level_emoji = {"bronze": "🥉", "silver": "🥈", "gold": "🥇", "diamond": "💎"}
+    text = get_text(lang, "wallet_info",
+        balance=fmt(user.wallet_balance),
+        spent=fmt(user.total_spent),
+        level=level_emoji.get(user.loyalty_level.value, "🥉") + " " + user.loyalty_level.value.upper(),
+        orders=user.total_orders,
     )
-    await cb.message.edit_text(text, reply_markup=wallet_menu_kb().as_markup())
+    await cb.message.edit_text(text, reply_markup=wallet_menu_kb(lang).as_markup())
     await cb.answer()
 
 
 @router.callback_query(F.data == "wallet:deposit")
-async def deposit_start(cb: CallbackQuery, state: FSMContext):
+async def deposit_start(cb: CallbackQuery, state: FSMContext, lang: str):
     """Start deposit process."""
-    await cb.message.edit_text(
-        "💳 افزایش موجودی\n\nمبلغ مورد نظر را وارد کنید (تومان):",
-        reply_markup=main_menu_kb().as_markup(),
-    )
+    await cb.message.edit_text(get_text(lang, "deposit_amount"))
     await state.set_state(DepositState.amount)
     await cb.answer()
 
 
 @router.message(DepositState.amount)
-async def deposit_amount(msg: Message, state: FSMContext):
-    """Process deposit amount input."""
+async def deposit_amount(msg: Message, state: FSMContext, lang: str):
+    """Process deposit amount."""
     try:
-        amount = int(msg.text.replace(",", "").replace(" ", ""))
+        raw = msg.text.replace(",", "").replace(" ", "").replace(".", "")
+        amount = int(raw)
         if amount < 10000:
-            await msg.answer("⚠️ حداقل مبلغ ۱۰,۰۰۰ تومان است.")
+            await msg.answer(get_text(lang, "deposit_min"))
             return
         await state.update_data(amount=amount)
-        await msg.answer(
-            f"📋 مبلغ: {fmt_price(amount)} تومان\n\n"
-            f"لطفاً رسید پرداخت را ارسال کنید.",
-        )
+        await msg.answer(get_text(lang, "deposit_receipt", amount=fmt(amount)))
         await state.set_state(DepositState.receipt)
-    except ValueError:
-        await msg.answer("⚠️ لطفاً یک عدد معتبر وارد کنید.")
+    except (ValueError, AttributeError):
+        await msg.answer(get_text(lang, "invalid_number"))
 
 
 @router.message(DepositState.receipt)
-async def deposit_receipt(msg: Message, state: FSMContext):
-    """Process deposit receipt (photo or text)."""
+async def deposit_receipt(msg: Message, state: FSMContext, session: AsyncSession, user: User, lang: str):
+    """Process deposit receipt."""
     data = await state.get_data()
     amount = data.get("amount", 0)
 
-    # Forward to admin
-    from app.core.config import settings
+    # Create payment record
+    payment = Payment(
+        user_id=user.tg_id,
+        amount=amount,
+        method=PaymentMethod.USDT_TRC20,
+        status=PaymentStatus.SUBMITTED,
+    )
+    session.add(payment)
+    await session.flush()
+
+    # Notify admins
+    caption = (
+        f"💳 <b>درخواست واریز جدید</b>\n\n"
+        f"👤 کاربر: {user.full_name or user.username} (<code>{user.tg_id}</code>)\n"
+        f"💰 مبلغ: {fmt(amount)} تومان\n"
+        f"🔢 شماره: #{payment.id}"
+    )
     for admin_id in settings.admin_ids_list:
         try:
             if msg.photo:
-                await msg.bot.send_photo(
-                    admin_id,
-                    msg.photo[-1].file_id,
-                    caption=f"💳 درخواست واریز\n\nمبلغ: {fmt_price(amount)} تومان\nکاربر: {msg.from_user.full_name} ({msg.from_user.id})",
+                await msg.bot.send_photo(admin_id, msg.photo[-1].file_id, caption=caption,
+                    reply_markup=None)  # Will add buttons below
+                # Send inline buttons separately
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                from aiogram.types import InlineKeyboardButton
+                kb = InlineKeyboardBuilder()
+                kb.row(
+                    InlineKeyboardButton(text="✅ تأیید", callback_data=f"admin:dep:approve:{payment.id}"),
+                    InlineKeyboardButton(text="❌ رد", callback_data=f"admin:dep:reject:{payment.id}"),
                 )
+                await msg.bot.send_message(admin_id, "اقدام:", reply_markup=kb.as_markup())
             else:
-                await msg.bot.send_message(
-                    admin_id,
-                    f"💳 درخواست واریز\n\nمبلغ: {fmt_price(amount)} تومان\nکاربر: {msg.from_user.full_name} ({msg.from_user.id})\n\nتوضیحات: {msg.text}",
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                from aiogram.types import InlineKeyboardButton
+                kb = InlineKeyboardBuilder()
+                kb.row(
+                    InlineKeyboardButton(text="✅ تأیید", callback_data=f"admin:dep:approve:{payment.id}"),
+                    InlineKeyboardButton(text="❌ رد", callback_data=f"admin:dep:reject:{payment.id}"),
                 )
+                await msg.bot.send_message(admin_id, caption + "\n\n📝 " + (msg.text or ""), reply_markup=kb.as_markup())
         except Exception:
             pass
 
-    await msg.answer("✅ رسید شما ارسال شد. پس از بررسی، موجودی شما افزایش می‌یابد.")
+    await msg.answer(get_text(lang, "deposit_sent"))
     await state.clear()
 
 
 @router.callback_query(F.data == "wallet:tx")
-async def wallet_transactions(cb: CallbackQuery, session: AsyncSession):
+async def wallet_transactions(cb: CallbackQuery, session: AsyncSession, user: User, lang: str):
     """Show recent transactions."""
     r = await session.execute(
         select(Transaction)
-        .where(Transaction.user_id == cb.from_user.id)
+        .where(Transaction.user_id == user.tg_id)
         .order_by(desc(Transaction.created_at))
-        .limit(10)
+        .limit(15)
     )
     txs = r.scalars().all()
 
     if not txs:
-        text = "📊 تراکنش‌ها\n\nهنوز تراکنشی ندارید."
+        text = get_text(lang, "no_transactions")
     else:
-        lines = ["📊 تراکنش‌های اخیر:\n"]
+        lines = [f"📊 <b>{get_text(lang, 'transactions_btn')}</b>\n"]
         for tx in txs:
             sign = "+" if tx.amount > 0 else ""
-            lines.append(f"• {tx.type.value}: {sign}{tx.amount} | {tx.description or ''}")
+            emoji = {"deposit": "💳", "purchase": "🛒", "refund": "↩️", "referral_bonus": "🎁"}.get(tx.type.value, "📋")
+            lines.append(f"{emoji} {sign}{fmt(tx.amount)} | {tx.description or tx.type.value}")
         text = "\n".join(lines)
 
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    kb = InlineKeyboardBuilder()
-    kb.row(back_btn)
-    await cb.message.edit_text(text, reply_markup=kb.as_markup())
+    await cb.message.edit_text(text, reply_markup=back_kb(lang).as_markup(), parse_mode="HTML")
     await cb.answer()
