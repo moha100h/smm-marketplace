@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual env
+venv/
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+
+# Docker
+data/
+backups/
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+
+# SSL
+*.pem
+*.key
+*.crt
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Frontend
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Backend
+backend/__pycache__/
+backend/.pytest_cache/
+
+# Docker compose overrides
+docker-compose.override.yml
