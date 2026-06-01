@@ -21,7 +21,8 @@ class DepositState(StatesGroup):
 @router.callback_query(F.data == "wallet:main")
 async def wallet_main(cb: CallbackQuery, session: AsyncSession):
     """Show wallet balance."""
-    user = await session.get(User, cb.from_user.id)
+    r = await session.execute(select(User).where(User.tg_id == cb.from_user.id))
+    user = r.scalar_one_or_none()
     if not user:
         await cb.answer("کاربر یافت نشد", show_alert=True)
         return
