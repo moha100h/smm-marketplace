@@ -7,6 +7,7 @@ from aiogram.types import InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.models.order import Order, OrderStatus
+from app.models.user import User
 from app.models.provider import Provider
 from app.models.payment import Payment, PaymentStatus
 from app.core.config import settings
@@ -27,7 +28,7 @@ async def admin_panel(msg: Message, session: AsyncSession):
     payments = (await session.execute(select(func.count(Payment.id)).where(Payment.status == PaymentStatus.SUBMITTED))).scalar() or 0
 
     kb = InlineKeyboardBuilder()
-    kb.row(InlineKeyboardButton(text=f"✅ نوبت‌های در انتظار ({pending})", callback_data="adm:pending"))
+    kb.row(InlineKeyboardButton(text=f"✅ سفارش‌های در انتظار ({pending})", callback_data="adm:pending"))
     kb.row(InlineKeyboardButton(text=f"💳 پرداخت‌های در انتظار ({payments})", callback_data="adm:payments"))
     kb.row(InlineKeyboardButton(text="📦 مدیریت پرووایدرها", callback_data="adm:providers"))
     kb.row(InlineKeyboardButton(text="📊 آمار", callback_data="adm:stats"))
@@ -76,16 +77,11 @@ async def adm_order(cb: CallbackQuery, session: AsyncSession):
     kb.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="adm:pending"))
 
     text = (
-        f"📋 <b>سفارش #{order.id}</b>
-"
-        f"━━━━━━━━━━━━━━━━━━
-"
-        f"🔢 تعداد: {order.quantity:,}
-"
-        f"💰 مبلغ: {order.total_cost:,}
-"
-        f"📊 وضعیت: {order.status.value}
-"
+        f"📋 <b>سفارش #{order.id}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🔢 تعداد: {order.quantity:,}\n"
+        f"💰 مبلغ: {order.total_cost:,}\n"
+        f"📊 وضعیت: {order.status.value}\n"
         f"━━━━━━━━━━━━━━━━━━"
     )
     await cb.message.edit_text(text, reply_markup=kb.as_markup(), parse_mode="HTML")
@@ -109,7 +105,7 @@ async def adm_order_reject(cb: CallbackQuery, session: AsyncSession):
     order = await session.get(Order, order_id)
     if order:
         order.status = OrderStatus.REJECTED
-        # Refund
+        # Refund to user wallet
         user = await session.get(User, order.user_id)
         if user:
             user.wallet_balance += order.total_cost
