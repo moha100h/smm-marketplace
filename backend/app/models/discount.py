@@ -1,4 +1,3 @@
-"""Discount model — coupon codes."""
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Enum
 from app.db.base import Base
@@ -12,7 +11,6 @@ class DiscountType(str, enum.Enum):
 
 class Discount(Base):
     __tablename__ = "discounts"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(64), unique=True, nullable=False)
     type = Column(Enum(DiscountType), nullable=False)
@@ -23,6 +21,3 @@ class Discount(Base):
     is_active = Column(Boolean, default=True)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<Discount {self.code} {self.value}{self.type.value}>"
