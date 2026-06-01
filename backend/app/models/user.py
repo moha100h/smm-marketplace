@@ -1,6 +1,6 @@
 """User model — authentication, wallet, loyalty, referral."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Enum, Float, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 import enum
@@ -32,11 +32,15 @@ class User(Base):
     is_banned = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    # Relationships — lazy="selectin" for async safety
-    orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id", lazy="selectin")
-    transactions = relationship("Transaction", back_populates="user", foreign_keys="Transaction.user_id", lazy="selectin")
-    tickets = relationship("Ticket", back_populates="user", foreign_keys="Ticket.user_id", lazy="selectin")
-    notifications = relationship("Notification", back_populates="user", foreign_keys="Notification.user_id", lazy="selectin")
+    # Relationships — user_id stores tg_id (BigInteger), so use primaryjoin
+    orders = relationship("Order", back_populates="user",
+        primaryjoin="User.tg_id == foreign(Order.user_id)", lazy="selectin")
+    transactions = relationship("Transaction", back_populates="user",
+        primaryjoin="User.tg_id == foreign(Transaction.user_id)", lazy="selectin")
+    tickets = relationship("Ticket", back_populates="user",
+        primaryjoin="User.tg_id == foreign(Ticket.user_id)", lazy="selectin")
+    notifications = relationship("Notification", back_populates="user",
+        primaryjoin="User.tg_id == foreign(Notification.user_id)", lazy="selectin")
 
     def update_loyalty(self):
         if self.total_spent >= 10000:
