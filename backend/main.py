@@ -2,7 +2,8 @@
 import asyncio
 import logging
 from app.core.config import settings
-from app.db.database import engine, async_session, Base
+from app.db.database import engine, async_session
+from app.db.base import Base
 from app.bot.bot import start_bot
 
 logging.basicConfig(
