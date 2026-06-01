@@ -16,15 +16,14 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.tg_id"), nullable=False, index=True)
     subject = Column(String(256), nullable=False)
     status = Column(Enum(TicketStatus), default=TicketStatus.OPEN)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", back_populates="tickets",
-        primaryjoin="Ticket.user_id == foreign(User.tg_id)")
-    messages = relationship("TicketMessage", back_populates="ticket", foreign_keys="TicketMessage.ticket_id", lazy="selectin")
+    user = relationship("User", back_populates="tickets")
+    messages = relationship("TicketMessage", back_populates="ticket", lazy="selectin")
 
     def __repr__(self):
         return f"<Ticket #{self.id} {self.subject}>"
@@ -40,7 +39,7 @@ class TicketMessage(Base):
     text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    ticket = relationship("Ticket", back_populates="messages", foreign_keys=[ticket_id])
+    ticket = relationship("Ticket", back_populates="messages")
 
     def __repr__(self):
         return f"<TicketMessage #{self.id} ticket={self.ticket_id}>"
