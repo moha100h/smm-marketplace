@@ -1,57 +1,43 @@
-"""Panel, Category, Service models — hierarchical marketplace structure."""
-from sqlalchemy import Column, Integer, String, Boolean, Text, Float, DateTime, ForeignKey, Index, Enum as SAEnum
-from sqlalchemy.orm import relationship
+"""Panel, Category, SubCategory, Service models — marketplace hierarchy."""
 from datetime import datetime
-import enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey
+from sqlalchemy.orm import relationship
 from app.db.base import Base
-
-
-class ServiceStatus(enum.Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    OUT_OF_STOCK = "out_of_stock"
-
-
-class PricingMode(enum.Enum):
-    FIXED = "fixed"
-    PERCENTAGE = "percentage"
-    DYNAMIC = "dynamic"
 
 
 class Panel(Base):
     __tablename__ = "panels"
-    __table_args__ = (Index("ix_panels_slug", "slug", unique=True),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, nullable=False)
-    name_en = Column(String, nullable=True)
-    slug = Column(String, unique=True, nullable=False)
+    name = Column(String(128), nullable=False)
     description = Column(Text, nullable=True)
-    icon = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    categories = relationship("Category", back_populates="panel", cascade="all, delete-orphan")
+    categories = relationship("Category", back_populates="panel", foreign_keys="Category.panel_id", lazy="selectin")
+
+    def __repr__(self):
+        return f"<Panel {self.name}>"
 
 
 class Category(Base):
     __tablename__ = "categories"
-    __table_args__ = (Index("ix_categories_panel_id", "panel_id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     panel_id = Column(Integer, ForeignKey("panels.id"), nullable=False)
-    name = Column(String, nullable=False)
-    name_en = Column(String, nullable=True)
+    name = Column(String(128), nullable=False)
     description = Column(Text, nullable=True)
-    icon = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    panel = relationship("Panel", back_populates="categories")
-    subcategories = relationship("SubCategory", back_populates="category", cascade="all, delete-orphan")
-    services = relationship("Service", back_populates="category")
+    panel = relationship("Panel", back_populates="categories", foreign_keys=[panel_id])
+    subcategories = relationship("SubCategory", back_populates="category", foreign_keys="SubCategory.category_id", lazy="selectin")
+    services = relationship("Service", back_populates="category", foreign_keys="Service.category_id", lazy="selectin")
+
+    def __repr__(self):
+        return f"<Category {self.name}>"
 
 
 class SubCategory(Base):
@@ -59,46 +45,38 @@ class SubCategory(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
-    name = Column(String, nullable=False)
-    name_en = Column(String, nullable=True)
+    name = Column(String(128), nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    category = relationship("Category", back_populates="subcategories")
-    services = relationship("Service", back_populates="subcategory")
+    category = relationship("Category", back_populates="subcategories", foreign_keys=[category_id])
+    services = relationship("Service", back_populates="subcategory", foreign_keys="Service.subcategory_id", lazy="selectin")
+
+    def __repr__(self):
+        return f"<SubCategory {self.name}>"
 
 
 class Service(Base):
     __tablename__ = "services"
-    __table_args__ = (
-        Index("ix_services_category_id", "category_id"),
-        Index("ix_services_status", "status"),
-    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
     subcategory_id = Column(Integer, ForeignKey("subcategories.id"), nullable=True)
-    name = Column(String, nullable=False)
-    name_en = Column(String, nullable=True)
+    name = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)
-    price = Column(Integer, default=0)  # per 1000 units
-    cost_price = Column(Integer, default=0)  # provider cost
-    profit_margin = Column(Float, default=0.0)  # percentage
-    pricing_mode = Column(SAEnum(PricingMode), default=PricingMode.FIXED)
-    delivery_time = Column(String, nullable=True)  # e.g. "0-24 hours"
+    price = Column(Float, nullable=False)
     min_quantity = Column(Integer, default=1)
     max_quantity = Column(Integer, default=100000)
-    status = Column(SAEnum(ServiceStatus), default=ServiceStatus.ACTIVE)
+    status = Column(String(32), default="active")
     sort_order = Column(Integer, default=0)
-    tags = Column(String, nullable=True)  # comma-separated
-    refill_enabled = Column(Boolean, default=False)
-    refill_days = Column(Integer, default=30)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    category = relationship("Category", back_populates="services")
-    subcategory = relationship("SubCategory", back_populates="services")
-    provider_mappings = relationship("ServiceProviderMapping", back_populates="service", cascade="all, delete-orphan")
-    order_forms = relationship("OrderForm", back_populates="service", cascade="all, delete-orphan")
-    orders = relationship("Order", back_populates="service")
+    category = relationship("Category", back_populates="services", foreign_keys=[category_id])
+    subcategory = relationship("SubCategory", back_populates="services", foreign_keys=[subcategory_id])
+    orders = relationship("Order", back_populates="service", foreign_keys="Order.service_id", lazy="selectin")
+    form_fields = relationship("OrderForm", back_populates="service", foreign_keys="OrderForm.service_id", lazy="selectin")
+
+    def __repr__(self):
+        return f"<Service {self.name} price={self.price}>"
