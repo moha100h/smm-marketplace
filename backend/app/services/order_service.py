@@ -29,10 +29,16 @@ class OrderService:
         """Create order, deduct wallet, route to provider."""
         total_cost = (quantity * price_per_1000) // 1000
 
-        # Deduct from wallet
-        await self.wallet_service.process_purchase(user_id, total_cost, order_id=0)  # temp 0, update later
+        # Step 1: Deduct from wallet FIRST (before creating order)
+        user = await self.session.get(User, user_id)
+        if user.wallet_balance < total_cost:
+            raise ValueError("Insufficient wallet balance")
 
-        # Create order
+        balance_before = user.wallet_balance
+        user.wallet_balance -= total_cost
+        await self.session.flush()
+
+        # Step 2: Create order
         order = Order(
             user_id=user_id,
             service_id=service_id,
@@ -46,9 +52,24 @@ class OrderService:
         self.session.add(order)
         await self.session.flush()
 
-        # Route to provider
-        # (In production, fetch mappings & providers from DB)
-        # result = await provider_router.route_order(...)
+        # Step 3: Record transaction with correct order_id
+        from app.models.payment import Transaction, TransactionType
+        tx = Transaction(
+            user_id=user_id,
+            order_id=order.id,
+            type=TransactionType.PURCHASE,
+            amount=-total_cost,
+            balance_before=balance_before,
+            balance_after=user.wallet_balance,
+            description=f"Order #{order.id} purchase",
+        )
+        self.session.add(tx)
+        await self.session.flush()
+
+        # Step 4: Update user stats
+        user.total_spent += total_cost
+        user.total_orders += 1
+        user.update_loyalty()
 
         return order
 
