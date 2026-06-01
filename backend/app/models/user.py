@@ -32,14 +32,13 @@ class User(Base):
     is_banned = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
 
-    # Relationships — lazy="selectin" to avoid lazy-load errors in async
+    # Relationships — lazy="selectin" for async safety
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id", lazy="selectin")
     transactions = relationship("Transaction", back_populates="user", foreign_keys="Transaction.user_id", lazy="selectin")
     tickets = relationship("Ticket", back_populates="user", foreign_keys="Ticket.user_id", lazy="selectin")
     notifications = relationship("Notification", back_populates="user", foreign_keys="Notification.user_id", lazy="selectin")
 
     def update_loyalty(self):
-        """Auto-update loyalty level based on total_spent."""
         if self.total_spent >= 10000:
             self.loyalty_level = LoyaltyLevel.DIAMOND
         elif self.total_spent >= 5000:
