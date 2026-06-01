@@ -1,21 +1,14 @@
-"""Base SMM Provider Adapter — Interface for all providers."""
+"""Base adapter interface for SMM providers."""
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 
 class BaseProviderAdapter(ABC):
-    """Abstract base class for SMM providers.
-    New providers should inherit from this and implement methods.
-    """
+    """Abstract base class for SMM panel API adapters."""
 
     @abstractmethod
     async def get_balance(self) -> float:
         """Get provider account balance."""
-        pass
-
-    @abstractmethod
-    async def get_services(self) -> List[Dict[str, Any]]:
-        """Fetch available services from provider."""
         pass
 
     @abstractmethod
@@ -25,15 +18,15 @@ class BaseProviderAdapter(ABC):
 
     @abstractmethod
     async def get_order_status(self, order_id: str) -> Dict[str, Any]:
-        """Check status of an order."""
+        """Get order status and remaining quantity."""
         pass
 
     @abstractmethod
-    async def refill_order(self, order_id: str) -> bool:
+    async def get_services(self) -> list:
+        """Get list of available services."""
+        pass
+
+    @abstractmethod
+    async def refill(self, order_id: str) -> bool:
         """Request refill for an order."""
-        pass
-
-    @abstractmethod
-    async def cancel_order(self, order_id: str) -> bool:
-        """Cancel an order."""
         pass
