@@ -25,7 +25,7 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
     amount = Column(Float, nullable=False)
     method = Column(Enum(PaymentMethod), nullable=False)
     status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
@@ -53,7 +53,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, nullable=False, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     type = Column(Enum(TransactionType), nullable=False)
     amount = Column(Float, nullable=False)
